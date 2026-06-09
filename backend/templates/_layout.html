@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ page_title }} - 舆情风控管理系统</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body class="app-body">
+  <aside class="sidebar">
+    <div class="brand">
+      <span class="brand-mark">舆</span>
+      <div>
+        <strong>舆情风控</strong>
+        <p class="muted small">Risk Control MVP</p>
+      </div>
+    </div>
+    <nav class="nav">
+      {% for item in nav_items %}
+        <a href="{{ item.href }}" class="nav-item {% if item.key == active_key %}active{% endif %}">{{ item.label }}</a>
+      {% endfor %}
+    </nav>
+    <div class="sidebar-footer">
+      <p class="muted small">当前角色</p>
+      <p><strong>{{ user.role_name }}</strong></p>
+      <button id="logoutBtn" class="link-button">退出登录</button>
+    </div>
+  </aside>
+  <main class="main">
+    <header class="topbar">
+      <h1>{{ page_title }}</h1>
+      <div class="user-info">
+        <span>{{ user.full_name or user.username }}</span>
+        <span class="role-pill">{{ user.role_name }}</span>
+      </div>
+    </header>
+    <section class="content">
+      {% block content %}{% endblock %}
+    </section>
+  </main>
+  <script src="/static/app.js"></script>
+</body>
+</html>

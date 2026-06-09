@@ -1,0 +1,21 @@
+{% extends "_layout.html" %}
+{% block content %}
+  <div class="placeholder-grid">
+    <article class="placeholder-card">
+      <h2>风险概览</h2>
+      <p class="muted">实时展示当前舆情风险压力,包含:</p>
+      <ul>
+        <li>舆情总数与负面占比</li>
+        <li>高/严重风险预警数与待确认预警数</li>
+        <li>待处理工单数</li>
+        <li>七日内舆情趋势</li>
+      </ul>
+      <p class="hint">将在阶段 9 接入真实业务数据</p>
+    </article>
+    <article class="placeholder-card">
+      <h2>最新预警</h2>
+      <p class="muted">滚动展示最近 5 条高/严重风险预警的标题、来源与发生时间。</p>
+      <p class="hint">将在阶段 7-9 接入预警事件流</p>
+    </article>
+  </div>
+{% endblock %}

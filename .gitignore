@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.env
+
+# SQLite & runtime data
+*.db
+*.sqlite
+*.sqlite3
+yuqing.db
+backend/yuqing.db
+data/
+reports_storage/
+logs/
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store

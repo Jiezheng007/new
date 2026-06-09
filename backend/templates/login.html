@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>登录 - 舆情风控管理系统</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body class="login-body">
+  <main class="login-card">
+    <header class="login-header">
+      <h1>舆情风控管理系统</h1>
+      <p class="muted">Yuqing Risk Control MVP</p>
+    </header>
+    <form id="loginForm" class="login-form" autocomplete="off">
+      <label>
+        <span>用户名</span>
+        <input id="username" name="username" type="text" required autofocus value="{{ username or '' }}">
+      </label>
+      <label>
+        <span>密码</span>
+        <input id="password" name="password" type="password" required>
+      </label>
+      <button type="submit">登录</button>
+      <p id="loginError" class="error {% if not error %}hidden{% endif %}">{{ error or '' }}</p>
+    </form>
+    <footer class="login-footer">
+      <p class="muted">默认账号: <code>admin / admin123</code></p>
+    </footer>
+  </main>
+  <script src="/static/login.js"></script>
+</body>
+</html>

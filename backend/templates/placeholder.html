@@ -1,0 +1,14 @@
+{% extends "_layout.html" %}
+{% block content %}
+  <article class="placeholder-card wide">
+    <h2>{{ page_title }}</h2>
+    <p class="muted">本模块将在后续阶段实现。当前阶段 1 已就绪的:</p>
+    <ul>
+      <li>登录认证与 RBAC 权限框架</li>
+      <li>五类角色:系统管理员 / 风控人员 / 处置人员 / 审计人员 / 普通查看人员</li>
+      <li>基于 cookie 的会话,以及基于 Bearer Token 的 API 访问</li>
+      <li>业务 API 占位点(用以验证未授权 401 / 越权 403 / 通过 200)</li>
+    </ul>
+    <p class="hint">该占位页由当前登录用户角色控制访问,未授权角色将返回 403。</p>
+  </article>
+{% endblock %}
