@@ -374,7 +374,7 @@ code {
 .chip.primary { background: rgba(37, 99, 235, 0.1); color: var(--primary); border-color: transparent; }
 .chip.muted { color: var(--muted); }
 
-.dialog {
+.dialog:not(.hidden) {
   position: fixed;
   inset: 0;
   background: rgba(15, 23, 42, 0.45);
