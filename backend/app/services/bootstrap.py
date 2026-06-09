@@ -20,7 +20,7 @@ _DEMO_USERS: list[tuple[str, str, str, str]] = [
 
 def init_db() -> None:
     """Create tables, seed roles, and ensure a bootstrap admin + demo users exist."""
-    from app.models import user  # noqa: F401 - ensure model registration
+    from app.models import audit, user  # noqa: F401 - ensure model registration
 
     Base.metadata.create_all(bind=engine)
     with Session(engine) as db:

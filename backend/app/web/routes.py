@@ -81,7 +81,7 @@ _PAGE_KEY_TO_PATH = {
     "alerts": "placeholder.html",
     "tickets": "placeholder.html",
     "reports": "placeholder.html",
-    "users": "placeholder.html",
+    "users": "users.html",
     "audit": "placeholder.html",
 }
 

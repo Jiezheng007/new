@@ -1,0 +1,106 @@
+{% extends "_layout.html" %}
+{% block content %}
+  <div class="users-page">
+    <section class="panel">
+      <header class="panel-header">
+        <h2>创建用户</h2>
+        <p class="muted small">新建账号并分配一个角色。密码必须至少 6 位。</p>
+      </header>
+      <form id="createUserForm" class="form-grid" autocomplete="off">
+        <label>
+          <span>用户名</span>
+          <input id="cu_username" name="username" type="text" minlength="2" maxlength="64" required>
+        </label>
+        <label>
+          <span>姓名</span>
+          <input id="cu_full_name" name="full_name" type="text" maxlength="128">
+        </label>
+        <label>
+          <span>初始密码</span>
+          <input id="cu_password" name="password" type="text" minlength="6" maxlength="128" required>
+        </label>
+        <label>
+          <span>角色</span>
+          <select id="cu_role_id" name="role_id" required></select>
+        </label>
+        <label class="checkbox">
+          <input id="cu_is_active" name="is_active" type="checkbox" checked>
+          <span>启用账号</span>
+        </label>
+        <div class="form-actions">
+          <button type="submit" class="primary">创建</button>
+          <p id="createUserStatus" class="status"></p>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel">
+      <header class="panel-header">
+        <h2>用户列表</h2>
+        <p class="muted small">系统管理员可编辑用户、停用 / 启用账号、重置密码。</p>
+      </header>
+      <div class="table-wrap">
+        <table class="data-table" id="usersTable">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>用户名</th>
+              <th>姓名</th>
+              <th>角色</th>
+              <th>状态</th>
+              <th>创建时间</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="usersTbody">
+            <tr><td colspan="7" class="muted">加载中...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel">
+      <header class="panel-header">
+        <h2>角色与权限</h2>
+        <p class="muted small">只读视图,展示五类角色对应的权限集合。</p>
+      </header>
+      <div id="rolesContainer" class="roles-grid">
+        <p class="muted">加载中...</p>
+      </div>
+    </section>
+  </div>
+
+  <div id="editUserDialog" class="dialog hidden" role="dialog" aria-modal="true">
+    <div class="dialog-card">
+      <header>
+        <h3>编辑用户</h3>
+        <button type="button" class="link-button" id="editUserClose">关闭</button>
+      </header>
+      <form id="editUserForm" class="form-grid">
+        <input type="hidden" id="eu_id">
+        <label>
+          <span>用户名</span>
+          <input id="eu_username" type="text" disabled>
+        </label>
+        <label>
+          <span>姓名</span>
+          <input id="eu_full_name" type="text" maxlength="128">
+        </label>
+        <label>
+          <span>角色</span>
+          <select id="eu_role_id" required></select>
+        </label>
+        <label class="checkbox">
+          <input id="eu_is_active" type="checkbox">
+          <span>启用账号</span>
+        </label>
+        <div class="form-actions">
+          <button type="submit" class="primary">保存修改</button>
+          <p id="editUserStatus" class="status"></p>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="/static/users.js"></script>
+{% endblock %}
