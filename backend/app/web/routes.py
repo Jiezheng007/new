@@ -82,7 +82,7 @@ _PAGE_KEY_TO_PATH = {
     "tickets": "tickets.html",
     "reports": "reports.html",
     "users": "users.html",
-    "audit": "placeholder.html",
+    "audit": "audit.html",
 }
 
 

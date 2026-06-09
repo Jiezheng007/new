@@ -3,7 +3,52 @@
 FastAPI + SQLAlchemy + Jinja2 modular monolith implementing the public-opinion
 risk-control MVP. See `PRD.md`, `requirement.md`, and `PRD.issue.md` for the
 full product, architecture, and issue plan; `generated-issues.md` is the
-phased issue list (current scope: Phase 8 — Report center).
+phased issue list (current scope: Phase 9 — Audit log review).
+
+## Phase 9 status — Audit log review
+
+Phases 1–8 already write audit rows for every important state change
+(login, user/role, data-source, rule, alert, ticket, report create /
+download). Phase 9 surfaces those rows: an auditor-facing list page
+with filters, an API, and the missing `auth.login` / `auth.logout`
+hooks so the login domain shows up alongside the rest.
+
+- **Login auditing** (`app/api/auth.py`): every login attempt now
+  writes one `auth.login` row. Success carries the user id; failure
+  is split into `unknown_user`, `user_disabled`, and `bad_password`
+  in the detail blob so an operator can tell brute-force from a
+  disabled-account ping. A best-effort `auth.logout` row is written
+  when the cookie still resolves to a user.
+- **Audit service** (`app/services/audit.py`): the existing
+  `record_audit` writer is unchanged. New read helpers
+  (`list_audit_logs`, `get_audit_log`, `audit_log_facets`) own the
+  filter translation so the API stays thin. Filters are
+  AND-combined: `action`, `target_type`, `target_id`, `actor`
+  (matches username or numeric id), `result`, `start_at` / `end_at`,
+  and `q` (substring against the JSON `detail`).
+- **API** (`/api/audit-logs`): paginated list, `facets` for distinct
+  dropdown values, and `{id}` detail. The router is read-only by
+  contract — a regression test enumerates the routes and asserts no
+  POST / PUT / PATCH / DELETE exists. Reading the log is itself
+  *not* audited; doing so would produce an unbounded
+  `audit.list → audit row → audit.list` recursion.
+- **Authorization**: only `admin` and `auditor` can read. Every
+  other role (risk_control, handler, viewer) gets a 403 on every
+  endpoint, including `facets` and detail.
+- **Web UI** (`/web/audit`): server-rendered page with the same
+  panel/form/table shape as the other backend-management pages.
+  Action and target dropdowns are populated from `/facets` so a new
+  audit action shows up automatically without a UI patch. Detail
+  blobs are JSON-pretty-printed in a dialog when an operator clicks
+  a row. The page sits in the auditor + admin navs only.
+- **Demo path** (continues from Phase 8): admin fetches data →
+  ingestion + analysis + alert + ticket + report rows are written →
+  auditor opens `/web/audit`, filters by `action=report.download`,
+  expands a row, and sees the full IP / actor / target / detail
+  trail. Login failures (bad password, unknown user) and successes
+  show up alongside.
+
+Test totals: **289 / 289 green** (262 from Phases 1–8 + 27 new for Phase 9).
 
 ## Phase 8 status — Report center
 

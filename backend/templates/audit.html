@@ -1,0 +1,97 @@
+{% extends "_layout.html" %}
+{% block content %}
+  <div class="audit-page">
+    <section class="panel">
+      <header class="panel-header">
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;">
+          <h2 style="margin: 0;">审计日志</h2>
+          <p class="muted small" id="auditSummary" style="margin: 0;">加载中...</p>
+        </div>
+        <p class="muted small">登录、用户与角色、数据源、规则、预警、工单、报告等关键操作均会写入审计日志,供审计人员追溯。</p>
+      </header>
+      <form id="auditFilter" class="form-grid" autocomplete="off" style="margin-bottom: 1rem;">
+        <label>
+          <span>操作类型</span>
+          <select id="aud_f_action" name="action">
+            <option value="">全部</option>
+          </select>
+        </label>
+        <label>
+          <span>目标类型</span>
+          <select id="aud_f_target_type" name="target_type">
+            <option value="">全部</option>
+          </select>
+        </label>
+        <label>
+          <span>目标 ID</span>
+          <input id="aud_f_target_id" name="target_id" type="text" maxlength="64" placeholder="精确匹配">
+        </label>
+        <label>
+          <span>操作人</span>
+          <input id="aud_f_actor" name="actor" type="text" maxlength="64" placeholder="用户名或 ID">
+        </label>
+        <label>
+          <span>结果</span>
+          <select id="aud_f_result" name="result">
+            <option value="">全部</option>
+            <option value="success">成功</option>
+            <option value="failure">失败</option>
+          </select>
+        </label>
+        <label>
+          <span>开始时间</span>
+          <input id="aud_f_start" name="start_at" type="datetime-local">
+        </label>
+        <label>
+          <span>结束时间</span>
+          <input id="aud_f_end" name="end_at" type="datetime-local">
+        </label>
+        <label>
+          <span>详情关键词</span>
+          <input id="aud_f_q" name="q" type="text" maxlength="128" placeholder="在 detail 中模糊查询">
+        </label>
+        <div class="form-actions">
+          <button type="submit" class="primary">查询</button>
+          <button type="button" id="audReset" class="link-button">重置</button>
+        </div>
+      </form>
+      <div class="table-wrap">
+        <table class="data-table" id="audTable">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>时间</th>
+              <th>操作人</th>
+              <th>操作类型</th>
+              <th>目标</th>
+              <th>结果</th>
+              <th>IP</th>
+              <th>详情</th>
+            </tr>
+          </thead>
+          <tbody id="audTbody">
+            <tr><td colspan="8" class="muted">加载中...</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="form-actions" style="margin-top: 0.75rem;">
+        <button type="button" id="audPrev" class="link-button">上一页</button>
+        <span id="audPager" class="muted small"></span>
+        <button type="button" id="audNext" class="link-button">下一页</button>
+        <button type="button" id="audRefresh" class="link-button" style="margin-left: auto;">刷新</button>
+      </div>
+    </section>
+  </div>
+
+  <div id="auditDialog" class="dialog hidden" role="dialog" aria-modal="true">
+    <div class="dialog-card" style="width: min(720px, 95vw);">
+      <header>
+        <h3 id="auditDialogTitle">审计详情</h3>
+        <button type="button" class="link-button" id="auditDialogClose">关闭</button>
+      </header>
+      <div id="auditDialogBody" class="muted small" style="white-space: pre-wrap; line-height: 1.6; max-height: 65vh; overflow-y: auto;">加载中...</div>
+    </div>
+  </div>
+
+  <script src="/static/audit.js"></script>
+{% endblock %}
