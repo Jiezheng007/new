@@ -80,7 +80,7 @@ _PAGE_KEY_TO_PATH = {
     "opinions": "opinions.html",
     "alerts": "alerts.html",
     "tickets": "tickets.html",
-    "reports": "placeholder.html",
+    "reports": "reports.html",
     "users": "users.html",
     "audit": "placeholder.html",
 }

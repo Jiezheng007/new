@@ -58,10 +58,12 @@ ROLE_NAV_ITEMS: dict[str, list[dict]] = {
         {"key": "opinions", "label": "舆情列表", "href": "/web/opinions"},
         {"key": "alerts", "label": "预警中心", "href": "/web/alerts"},
         {"key": "tickets", "label": "工单管理", "href": "/web/tickets"},
+        {"key": "reports", "label": "报告中心", "href": "/web/reports"},
         {"key": "datasources", "label": "数据源管理", "href": "/web/datasources"},
     ],
     RoleCode.VIEWER: [
         {"key": "workbench", "label": "工作台", "href": "/web/workbench"},
+        {"key": "reports", "label": "报告中心", "href": "/web/reports"},
     ],
 }
 

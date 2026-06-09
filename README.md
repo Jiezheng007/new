@@ -3,7 +3,100 @@
 FastAPI + SQLAlchemy + Jinja2 modular monolith implementing the public-opinion
 risk-control MVP. See `PRD.md`, `requirement.md`, and `PRD.issue.md` for the
 full product, architecture, and issue plan; `generated-issues.md` is the
-phased issue list (current scope: Phase 6).
+phased issue list (current scope: Phase 8 — Report center).
+
+## Phase 8 status — Report center
+
+Phases 1–7 built the shell, users, rules, ingestion, analysis, alerts,
+tickets, and the workbench dashboard. Phase 8 closes the demo loop with
+an asynchronous Excel report center: risk-control users can queue a
+report against any filter combination, watch it run in the background,
+and download the resulting `.xlsx` once it lands.
+
+- **`ReportTask` ORM model** (`app/models/report.py`): one row per
+  queued report, with a four-state machine
+  `pending → generating → completed | failed` and a snapshot of the
+  filters (`start_at`, `end_at`, `risk_level`, `subject_keyword`),
+  matched / included counts, file path / size, and a creator snapshot
+  so the row still tells a coherent story if the user is later
+  disabled. `started_at` / `completed_at` / `error_message` round out
+  the lifecycle columns.
+- **Service** (`app/services/reports.py`): one place owns the filter
+  translation, the worker, and the Excel writer. The
+  `_build_base_query` helper is shared by the list endpoint, the
+  worker, and the test helper so the report is, by definition, the
+  filtered list rendered into a file. `_normalize_filters` rejects
+  bad combinations (start > end, unknown risk level) at the service
+  boundary with a typed `ReportInputError`.
+- **Async worker** (`process_report_task`): the API schedules the
+  worker with FastAPI's `BackgroundTasks`. The worker opens its own
+  short-lived `SessionLocal` (the request-scoped session is already
+  closed by the time a BackgroundTask fires) and walks
+  `pending → generating → completed` or `→ failed`. Re-running on
+  a row already in `generating` is a no-op so a duplicate background
+  fire cannot double-write the file.
+- **Excel writer**: 3-sheet workbook via `openpyxl` —
+  概览 (one-row filter summary + count-by-risk), 汇总 (count-by-source /
+  -day / -sentiment), 明细 (one row per matched opinion with all the
+  columns the user can see in the opinion list, with explanation text
+  inlined from the Phase 4 factors dict). Columns are auto-sized in a
+  CJK-aware way (Chinese chars count as 2× wide). File path defaults
+  to a sibling of the SQLite DB so a workspace copy stays
+  self-contained; `REPORT_STORAGE_DIR` env override is honoured (the
+  test suite uses this for isolation).
+- **API** (`/api/reports`): list (`status` filter, `creator_id`),
+  detail, `summary` (counts by status), `POST` to create, and
+  `GET .../download` to stream the generated `.xlsx`. Read access
+  for admin / risk_control / auditor / viewer; write access for
+  admin / risk_control only. Handler is blocked from every endpoint
+  (read or write). A pending / generating / failed task returns 409
+  on download; a completed task whose file is missing returns 410
+  (the operator can see what happened from the audit log).
+- **Audit trail**: every state change writes an `AuditLog` row with
+  actor, action (`report.create` / `report.download`), target_id,
+  result (`success` or `failure`), IP, and a JSON detail. A
+  `failure` row is written for: invalid filters, missing / not-ready
+  task, and missing file — so an operator can later trace
+  "who tried to fetch what" without losing context.
+- **Web UI** (`/web/reports`): server-rendered page with two panels —
+  "生成新报告" (filter form) and "报告任务" (list with status pill,
+  matched count, download link). A detail dialog shows the full
+  filter summary, lifecycle timestamps, file size, and a download
+  button when the task is `completed`. The page polls every 5
+  seconds while any visible task is still `pending` / `generating`
+  so an operator who walks away with a long task in flight still
+  sees the transition.
+- **Demo path** (continues from Phase 6): admin fetches the static
+  demo → 2 pending alerts → risk_control confirms one → converts to
+  ticket → handler completes → risk_control archives. Phase 8
+  extends this with: risk_control creates a report task
+  (`risk_level=high`, optional time range), the background worker
+  produces the `.xlsx` in a fraction of a second, the list page
+  shows a `已生成` link, the user downloads the file, and the
+  audit log records both the create and the download.
+
+Test totals: **262 / 262 green** (230 from Phases 1–7 + 32 new for Phase 8).
+
+## Phase 7 status — Workbench dashboard
+
+Phases 1–6 built the shell, users, rules, ingestion, analysis, alerts,
+and the ticket lifecycle. Phase 7 layers a workbench dashboard on top
+of the data wired up by the earlier phases: a one-screen overview that
+risk-control can glance at to gauge the current state of the queue.
+
+- **Workbench panel** (`/web/workbench`): KPI cards (opinion total,
+  positive / neutral / negative breakdown, alert pressure, open
+  tickets) plus a 7-day trend chart and a "latest alerts" / "my
+  open tickets" feed. Server-rendered through the same Jinja shell
+  so no new client-side framework is added.
+- **`/api/dashboard/summary`**: a single endpoint that aggregates
+  the metrics the panel needs (counts + trend buckets + latest
+  items) so the page can render in one round trip.
+- **Role-aware**: every role lands on `/web/workbench` after login;
+  the cards adapt to what that role is allowed to see (handler
+  sees "my tickets" instead of the full ticket pipeline).
+
+Test totals: **230 / 230 green** (209 from Phases 1–6 + 21 new for Phase 7).
 
 ## Phase 6 status — Ticket lifecycle
 
@@ -205,19 +298,22 @@ backend/
     db/         SQLAlchemy engine, session, Base
     models/     ORM models (User, Role, AuditLog, SensitiveKeyword,
                 SubjectKeyword, RiskThreshold, DataSource, OpinionItem,
-                AnalysisResult, Alert)
+                AnalysisResult, Alert, Ticket, ReportTask)
     schemas/    pydantic request/response models
     services/   bootstrap, audit logging, connectors, ingestion, importers,
                 nlp (provider abstraction + keyword implementation),
                 scoring (rule-based risk score), analysis (orchestration),
-                alerts (auto-create + confirm / ignore lifecycle)
+                alerts (auto-create + confirm / ignore lifecycle),
+                tickets (state machine + ticket-per-alert rule),
+                reports (async Excel worker + 3-sheet writer)
     web/        Jinja2 page routes
     main.py     create_app() entrypoint
   static/       CSS + JS for the Web UI, bundled demo CSV / JSON samples
   templates/    Jinja2 templates (login, layout, workbench, users, rules,
                 datasources, opinions, import, …)
   tests/        pytest suite (auth, web, user_management, rules,
-                datasources, imports, analysis, alerts)
+                datasources, imports, analysis, alerts, tickets,
+                reports)
   scripts/      dev helpers (seed_data.py)
   requirements.txt
   pytest.ini
@@ -243,11 +339,15 @@ uvicorn app.main:app --reload --port 8000
 Open <http://localhost:8000/login> and sign in with `admin / admin123`.
 After login:
 
-- `admin` can visit `/web/datasources`, `/web/rules`, `/web/users`, `/web/alerts`
-- `risk` can visit `/web/import`, `/web/opinions`, `/web/alerts`
-- `handler` lands on `/web/tickets` (handler-only nav in Phase 8)
-- `auditor` lands on `/web/audit`; can read `/web/alerts` + `/web/opinions` (Phase 11)
-- `viewer` lands on `/web/workbench` only
+- `admin` can visit `/web/datasources`, `/web/rules`, `/web/users`,
+  `/web/alerts`, `/web/reports`
+- `risk` can visit `/web/import`, `/web/opinions`, `/web/alerts`,
+  `/web/tickets`, `/web/reports` (and create / download reports)
+- `handler` lands on `/web/tickets` (own assignments only) and
+  `/web/workbench`
+- `auditor` lands on `/web/audit`; can read `/web/alerts`,
+  `/web/opinions`, `/web/tickets`, `/web/reports` (read-only)
+- `viewer` lands on `/web/workbench` and `/web/reports` (read-only)
 
 ## Configuration
 
@@ -325,6 +425,31 @@ Alerts (admin / risk_control / auditor read; admin / risk_control write):
 | POST   | `/api/alerts/{id}/confirm`          | pending → confirmed; writes audit                                       |
 | POST   | `/api/alerts/{id}/ignore`           | pending → ignored; body `{ "reason": "..." }` (≥ 2 chars); writes audit |
 
+Tickets (admin / risk_control / auditor read; admin / risk_control write;
+handler scoped to own tickets):
+
+| method | path                                | purpose                                                                 |
+| ------ | ----------------------------------- | ----------------------------------------------------------------------- |
+| GET    | `/api/tickets`                      | list with `status`, `risk_level`, `assignee_id`, `q`, `start_at`, `end_at`, `limit`, `offset` |
+| GET    | `/api/tickets/summary`              | count by status (`unassigned` / `in_progress` / `completed` / `archived` / `total`) |
+| GET    | `/api/tickets/{id}`                 | detail of one ticket (with opinion + alert summary)                     |
+| POST   | `/api/tickets/from-alert`           | convert a `confirmed` alert into a ticket (optional `assignee_id`); 409 on duplicate / wrong state |
+| POST   | `/api/tickets/{id}/assign`          | assign / re-assign a ticket (admin / risk_control only)                 |
+| POST   | `/api/tickets/{id}/start`           | handler accept on their own assignment                                  |
+| POST   | `/api/tickets/{id}/complete`        | body `{ "handling_result": "..." }` (≥ 2 chars); handler only on own ticket |
+| POST   | `/api/tickets/{id}/archive`         | close the loop from `completed` only                                    |
+
+Reports (admin / risk_control / auditor / viewer read; admin / risk_control
+write; handler blocked entirely):
+
+| method | path                                | purpose                                                                 |
+| ------ | ----------------------------------- | ----------------------------------------------------------------------- |
+| GET    | `/api/reports`                      | list with `status`, `creator_id`, `limit`, `offset`                     |
+| GET    | `/api/reports/summary`              | count by status (`pending` / `generating` / `completed` / `failed` / `total`) |
+| GET    | `/api/reports/{id}`                 | detail of one task (filter snapshot, counts, lifecycle timestamps)      |
+| POST   | `/api/reports`                      | body: `title`, `description`, `start_at`, `end_at`, `risk_level`, `subject_keyword`; 201 + schedules the background worker |
+| GET    | `/api/reports/{id}/download`        | stream the generated `.xlsx`; 409 if not yet `completed`, 410 if file is gone |
+
 Imports (admin / risk_control):
 
 | method | path                              | purpose                                                                |
@@ -358,7 +483,7 @@ pytest
 The suite provisions an isolated SQLite database per test run, seeds all five
 roles plus a disabled user, the four risk thresholds, the default sensitive +
 subject keyword set, the static demo data source, and the CSV / JSON import
-sinks. The full suite (171 tests) covers:
+sinks. The full suite (262 tests) covers:
 
 - **Auth** (`tests/test_auth.py`): login success / wrong-password / unknown-
   user / disabled-user rejection; logout clears the cookie; `/me` accepts
@@ -431,6 +556,33 @@ sinks. The full suite (171 tests) covers:
   `/api/alerts/summary` count matches the per-status breakdown; the
   `/web/alerts` page renders for admin / risk_control / auditor and
   returns 403 for handler / viewer.
+- **Ticket lifecycle** (`tests/test_tickets.py`): only `confirmed`
+  alerts can be converted (pending / ignored return 409); one ticket
+  per alert; assignee must be an active handler (admin / disabled
+  / non-handler return 400); assign / start / complete / archive
+  state machine with 409 on invalid transitions; handler visibility
+  is scoped to their own tickets and 403 on a peer's detail; every
+  state change writes an `AuditLog` row; the
+  `/api/tickets/summary` count matches the per-status breakdown; the
+  `/web/tickets` page renders for admin / risk_control / auditor /
+  handler and returns 403 for viewer.
+- **Report center** (`tests/test_reports.py`): happy-path POST
+  creates a task and writes a `report.create` audit row; handler /
+  auditor / viewer are blocked from the write endpoint and handler
+  is blocked from the read endpoints; pydantic rejects an unknown
+  `risk_level` (422) and the service rejects `start_at > end_at`
+  with a `report.create` failure audit row; the worker walks
+  `pending → generating → completed` and populates
+  `matched_count` / `file_size_bytes` / `started_at` /
+  `completed_at`; a writer that raises flips the row to `failed`
+  with `error_message`; re-running on a `generating` row is a no-op;
+  the generated `.xlsx` has the documented three sheets with
+  styled headers and detail rows that match the static demo
+  dataset; download returns the file with the right MIME type for
+  `completed` tasks and 409 / 410 for pending / failed / missing-
+  file paths; every download writes a `report.download` audit row
+  (success or failure); the `/web/reports` page renders for admin /
+  risk_control / auditor / viewer and returns 403 for handler.
 
 ## Demo happy path (no external network needed)
 
@@ -485,15 +637,28 @@ curl -b cookies.txt -X POST http://localhost:8000/api/tickets/1/archive
 # 12. Drill into a single opinion — the response includes the analysis
 #     section (sentiment, score, level, factors, explanation).
 curl -b cookies.txt http://localhost:8000/api/opinions/3 | python3 -m json.tool
+
+# 13. Risk-control queues an Excel report (Phase 8) over the high-risk
+#     items from the demo. The worker runs in the background and the
+#     response returns 201 with the new task id.
+curl -b cookies.txt -X POST http://localhost:8000/api/reports \
+  -H 'Content-Type: application/json' \
+  -d '{"title": "6 月高风险周报", "description": "Phase 8 演示", "risk_level": "high"}'
+
+# 14. Poll the summary until the task is no longer 'pending' / 'generating',
+#     then download the .xlsx. (The bundled demo is small enough that the
+#     worker usually finishes by the time the second request lands.)
+curl -b cookies.txt http://localhost:8000/api/reports/summary
+curl -b cookies.txt -OJ http://localhost:8000/api/reports/1/download
 ```
 
-Phases 1–6 together demonstrate the full ingest → analyze → risk →
-alert → ticket pipeline. Phase 7 will layer the workbench dashboard
-on top.
+Phases 1–8 together demonstrate the full ingest → analyze → risk →
+alert → ticket → report pipeline. Phase 9 will layer the
+permissions/role-assignment UX on top of the Phase 2 user model.
 
 ## What's next
 
-`generated-issues.md` lists Phases 7–12. The next slice is **Phase 7
-(Issue 9)**: the workbench dashboard (opinion totals, negative ratio,
-alert pressure, pending work, latest alerts, seven-day trends) on top
-of the data wired up by Phases 1–6.
+`generated-issues.md` lists Phases 9–12. The next slice is **Phase 9
+(Issue 11)**: the permissions and role-assignment UX, where admin
+manages the per-user permission set and per-role nav items directly
+from `/web/users` instead of editing the seed data.
