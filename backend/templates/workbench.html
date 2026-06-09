@@ -1,21 +1,70 @@
 {% extends "_layout.html" %}
 {% block content %}
-  <div class="placeholder-grid">
-    <article class="placeholder-card">
-      <h2>风险概览</h2>
-      <p class="muted">实时展示当前舆情风险压力,包含:</p>
-      <ul>
-        <li>舆情总数与负面占比</li>
-        <li>高/严重风险预警数与待确认预警数</li>
-        <li>待处理工单数</li>
-        <li>七日内舆情趋势</li>
-      </ul>
-      <p class="hint">将在阶段 9 接入真实业务数据</p>
-    </article>
-    <article class="placeholder-card">
-      <h2>最新预警</h2>
-      <p class="muted">滚动展示最近 5 条高/严重风险预警的标题、来源与发生时间。</p>
-      <p class="hint">将在阶段 7-9 接入预警事件流</p>
-    </article>
+  <div class="dashboard">
+    <section class="dashboard-summary" aria-labelledby="dashSummaryHeading">
+      <h2 id="dashSummaryHeading" class="section-title">实时风险概览</h2>
+      <p class="muted small">基于数据库中的舆情、预警、工单与近七日趋势汇总,数据每 30 秒自动刷新。</p>
+      <p id="dashStatus" class="status" role="status" aria-live="polite"></p>
+
+      <div class="metric-grid">
+        <article class="metric-card" data-card="opinion">
+          <h3>舆情总数</h3>
+          <p class="metric-value" data-field="opinion_total">-</p>
+          <p class="metric-sub" data-field="opinion_analyzed_total"></p>
+        </article>
+        <article class="metric-card" data-card="negative">
+          <h3>负面舆情占比</h3>
+          <p class="metric-value" data-field="opinion_negative_total">-</p>
+          <p class="metric-sub" data-field="opinion_negative_ratio"></p>
+        </article>
+        <article class="metric-card" data-card="alerts">
+          <h3>高/严重预警数</h3>
+          <p class="metric-value" data-field="alerts_high_or_severe_total">-</p>
+          <p class="metric-sub" data-field="alerts_pending"></p>
+        </article>
+        <article class="metric-card" data-card="tickets">
+          <h3>待处理工单数</h3>
+          <p class="metric-value" data-field="tickets_in_progress">-</p>
+          <p class="metric-sub" data-field="tickets_unassigned"></p>
+        </article>
+      </div>
+    </section>
+
+    <section class="dashboard-trend panel" aria-labelledby="dashTrendHeading">
+      <header class="panel-header">
+        <h2 id="dashTrendHeading">近七日舆情趋势</h2>
+        <p class="muted small">按舆情发布时间分桶,缺失日期补 0。包含负面舆情与高/严重风险数量。</p>
+      </header>
+      <div id="dashTrendBars" class="trend-bars" role="list" aria-label="近七日舆情趋势柱状图"></div>
+      <div class="trend-legend">
+        <span class="legend-item"><span class="legend-swatch total"></span>总数</span>
+        <span class="legend-item"><span class="legend-swatch negative"></span>负面</span>
+        <span class="legend-item"><span class="legend-swatch severe"></span>高/严重</span>
+      </div>
+    </section>
+
+    <section class="dashboard-alerts panel" aria-labelledby="dashAlertsHeading">
+      <header class="panel-header">
+        <h2 id="dashAlertsHeading">最新预警</h2>
+        <p class="muted small">按时间倒序展示前 5 条预警的标题、来源、风险等级与当前状态。</p>
+      </header>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>标题</th>
+              <th>来源</th>
+              <th>风险</th>
+              <th>状态</th>
+              <th>时间</th>
+            </tr>
+          </thead>
+          <tbody id="dashLatestAlerts">
+            <tr><td colspan="5" class="muted">加载中...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
   </div>
+  <script src="/static/workbench.js"></script>
 {% endblock %}

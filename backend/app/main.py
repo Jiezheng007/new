@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 
-from app.api import auth, protected, users, rules, datasources, opinions, imports, alerts, tickets
+from app.api import auth, dashboard, protected, users, rules, datasources, opinions, imports, alerts, tickets
 from app.core.config import get_settings
 from app.services.bootstrap import init_db
 from app.web.routes import pages_router, web_router
@@ -20,6 +20,7 @@ def create_app() -> FastAPI:
 
     app.include_router(auth.router)
     app.include_router(protected.router)
+    app.include_router(dashboard.router)
     app.include_router(users.router)
     app.include_router(rules.router)
     app.include_router(datasources.router)
