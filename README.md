@@ -3,37 +3,41 @@
 FastAPI + SQLAlchemy + Jinja2 modular monolith implementing the public-opinion
 risk-control MVP. See `PRD.md`, `requirement.md`, and `PRD.issue.md` for the
 full product, architecture, and issue plan; `generated-issues.md` is the
-phased issue list (Phase 1 = current scope).
+phased issue list (current scope: Phase 2).
 
-## Phase 1 status — Bootstrap authenticated MVP shell
+## Phase 2 status — User & role management
 
-Phase 1 establishes the runnable foundation that every later workflow uses:
+Phase 1 established the authenticated MVP shell. Phase 2 adds administrator-
+facing user and role management on top of that foundation.
 
-- FastAPI modular-monolith backend with SQLAlchemy ORM and SQLite (file-based)
-- Five MVP roles seeded: 系统管理员, 风控人员, 处置人员, 审计人员, 普通查看人员
-- Salted PBKDF2-HMAC-SHA256 password hashes (per-user random salt)
-- JWT access tokens (HS256) plus a same-site cookie for the Web UI
-- `/api/auth/login`, `/api/auth/logout`, `/api/auth/me`
-- Role-protected sample endpoints under `/api/protected/*` to prove RBAC
-- Server-rendered Web UI: login page + management-style shell with role-aware side navigation and placeholders for every required page
-- pytest suite covering login, profile, RBAC, and password storage
+- Audit log model and service: append-only `AuditLog` rows with actor, action,
+  target type/id, result, JSON detail, client IP, and timestamp. Same shape
+  will be reused by later phases (rules, alerts, tickets, reports, login).
+- Admin-only REST API under `/api/users` and `/api/users/{id}/reset-password`,
+  plus `/api/roles` for the role & permission reference.
+- `/web/users` page in the management shell: create user, list users, edit
+  user dialog, enable/disable toggle, password reset (admin-set or auto-
+  generated), read-only role & permission overview.
+- Safety guard: an admin cannot disable their own account or remove their own
+  admin role, and audit records never contain passwords.
+- 27 new acceptance tests; full suite is 50/50 green.
 
 ## Project layout
 
 ```
 backend/
   app/
-    api/        FastAPI routers (auth, protected placeholders, future business APIs)
+    api/        FastAPI routers (auth, protected placeholders, users)
     core/       settings + security primitives (password hashing, JWT)
     db/         SQLAlchemy engine, session, Base
-    models/     ORM models (User, Role) and role code/permission/seed tables
-    schemas/    pydantic request/response models
-    services/   bootstrap (table creation, role/admin seeding)
+    models/     ORM models (User, Role, AuditLog) and role/permission tables
+    schemas/    pydantic request/response models (auth, users)
+    services/   bootstrap, audit logging
     web/        Jinja2 page routes
     main.py     create_app() entrypoint
   static/       CSS + JS for the Web UI
-  templates/    Jinja2 templates
-  tests/        pytest suite
+  templates/    Jinja2 templates (login, layout, workbench, users, …)
+  tests/        pytest suite (auth, web, user_management)
   scripts/      dev helpers (seed_data.py)
   requirements.txt
   pytest.ini
@@ -55,6 +59,8 @@ uvicorn app.main:app --reload --port 8000
 ```
 
 Open <http://localhost:8000/login> and sign in with `admin / admin123`.
+After login, admins can visit <http://localhost:8000/web/users> to manage
+users and roles.
 
 ## Configuration
 
@@ -70,16 +76,34 @@ Copy `.env.example` to `.env` to override defaults. Notable settings:
 
 ## API quick reference
 
+Auth:
+
 | method | path                       | auth         | purpose                                |
 | ------ | -------------------------- | ------------ | -------------------------------------- |
 | POST   | `/api/auth/login`          | none         | username + password → JWT (sets cookie) |
 | POST   | `/api/auth/logout`         | none         | clear access_token cookie              |
 | GET    | `/api/auth/me`             | bearer/cookie| current user profile + permissions    |
-| GET    | `/api/protected/risk-control` | admin/risk | sample role-restricted endpoint        |
-| GET    | `/api/protected/handler`   | admin/handler| sample role-restricted endpoint        |
-| GET    | `/api/protected/auditor`   | admin/auditor| sample role-restricted endpoint       |
-| GET    | `/api/protected/admin`     | admin        | sample role-restricted endpoint        |
-| GET    | `/api/protected/dashboard` | any role     | sample authenticated endpoint          |
+
+User & role management (admin only):
+
+| method | path                                          | purpose                                |
+| ------ | --------------------------------------------- | -------------------------------------- |
+| GET    | `/api/users`                                  | list all users with role + permissions |
+| POST   | `/api/users`                                  | create user (username, password, role) |
+| GET    | `/api/users/{id}`                             | fetch a single user                    |
+| PATCH  | `/api/users/{id}`                             | update full_name, role_id, is_active   |
+| POST   | `/api/users/{id}/reset-password`              | reset password (admin-set or auto)     |
+| GET    | `/api/roles`                                  | list the five MVP roles + permissions  |
+
+Sample role-protected endpoints (used to prove RBAC end-to-end):
+
+| method | path                            | allowed roles       |
+| ------ | ------------------------------- | ------------------- |
+| GET    | `/api/protected/admin`          | admin               |
+| GET    | `/api/protected/risk-control`   | admin, risk_control |
+| GET    | `/api/protected/handler`        | admin, handler      |
+| GET    | `/api/protected/auditor`        | admin, auditor      |
+| GET    | `/api/protected/dashboard`      | any logged-in user  |
 
 Web UI: `GET /login` (form), `GET /web/<page>` (role-aware pages: workbench,
 datasources, rules, import, opinions, alerts, tickets, reports, users, audit).
@@ -95,16 +119,29 @@ pytest
 The suite provisions an isolated SQLite database per test run, seeds all five
 roles plus a disabled user, and verifies:
 
-- successful login + JWT issuance + cookie set
-- wrong-password / unknown-user / disabled-user login rejection
-- `/me` accepts a valid token, rejects missing/invalid tokens
-- password storage uses a per-user salt (no plaintext, distinct hashes for equal passwords)
-- unauthenticated business API calls return 401
-- admin can access every protected area; risk/handler/auditor/viewer each get 200 only on their own areas and 403 elsewhere
-- login page renders; root redirects unauthenticated visitors; role-aware nav contains the right items; cross-role page access returns 403
+- **Auth** (`tests/test_auth.py`): login success / wrong-password / unknown-
+  user / disabled-user rejection; logout clears the cookie; `/me` accepts
+  valid tokens and rejects missing or invalid ones; password storage uses a
+  per-user salt; unauthenticated business APIs return 401; admin can access
+  every protected area; risk / handler / auditor / viewer get 200 only on
+  their own areas and 403 elsewhere; Bearer token works the same as cookie.
+- **Web** (`tests/test_web.py`): login page renders; root redirects
+  unauthenticated visitors; role-aware nav contains the right items; cross-
+  role page access returns 403; unauthenticated page access returns 401.
+- **User management** (`tests/test_user_management.py`): admin can list,
+  create, edit, enable/disable, and reset passwords for users; newly created
+  users can log in; non-admin roles get 403; unauthenticated requests get
+  401; an admin cannot disable or demote themselves; duplicate usernames
+  return 409; invalid role_id returns 400; missing user returns 404; every
+  state change writes an `AuditLog` row with actor, action, target, result,
+  IP, and timestamp (and never the actual password); `/api/roles` returns
+  the five MVP roles with permission lists; the `/web/users` page renders
+  for admins and returns 403 for non-admins.
 
 ## What's next
 
-Phases 2–12 of `generated-issues.md` will build user/role management, risk
-rules, ingestion, analysis, alerts, tickets, reports, dashboard, and audit on
-top of this foundation.
+`generated-issues.md` lists Phases 3–12. The next slice (Phase 3) is
+risk-rule configuration with an audit trail, then public RSS/news ingestion
+(Phase 4), CSV/JSON import (Phase 5), and analysis + risk scoring (Phase 6).
+The audit log table built in Phase 2 will be reused for rule, alert, ticket,
+and report events in the later phases.
