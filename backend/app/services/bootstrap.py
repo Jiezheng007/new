@@ -1,4 +1,4 @@
-"""Database initialization: create tables, seed roles, create bootstrap admin and demo users."""
+"""Database initialization: create tables, seed roles, seed baseline risk rules and demo sources, create bootstrap admin and demo users."""
 from __future__ import annotations
 
 from sqlalchemy.orm import Session
@@ -6,7 +6,9 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.security import hash_password
 from app.db.session import Base, engine
+from app.models.datasource import DataSource
 from app.models.role_codes import ROLE_SEEDS, RoleCode
+from app.models.rule import RiskThreshold
 from app.models.user import Role, User
 
 
@@ -18,13 +20,60 @@ _DEMO_USERS: list[tuple[str, str, str, str]] = [
 ]
 
 
+# Default risk threshold cut-offs. min_score is the inclusive lower bound of
+# the band; the bands must be sorted ascending and end with a value that
+# covers the maximum possible score (a hard ceiling is not stored).
+DEFAULT_RISK_THRESHOLDS: list[tuple[str, int]] = [
+    ("low", 0),
+    ("medium", 30),
+    ("high", 60),
+    ("severe", 85),
+]
+
+
+# One built-in static demo data source ships with the app so the course
+# demo works without any external network. The connector is identified by
+# source_type="static_demo" and returns a fixed set of opinion items.
+_DEMO_STATIC_SOURCE: dict[str, object] = {
+    "code": "demo_static",
+    "name": "内置演示数据源",
+    "source_type": "static_demo",
+    "url": "",
+    "weight": 1.0,
+    "description": "随系统内置的演示数据,用于课堂演示与无网络环境的兜底展示。",
+}
+
+# Shared sink sources for CSV/JSON imports so re-uploads dedup naturally
+# against the (source_id, content_hash) uniqueness constraint.
+_IMPORT_SOURCES: list[dict[str, object]] = [
+    {
+        "code": "import_csv",
+        "name": "CSV 导入聚合",
+        "source_type": "csv",
+        "description": "所有 CSV 导入汇聚到的虚拟数据源,便于重复上传时自动去重。",
+    },
+    {
+        "code": "import_json",
+        "name": "JSON 导入聚合",
+        "source_type": "json_import",
+        "description": "所有 JSON 导入汇聚到的虚拟数据源,便于重复上传时自动去重。",
+    },
+]
+
+
 def init_db() -> None:
-    """Create tables, seed roles, and ensure a bootstrap admin + demo users exist."""
-    from app.models import audit, user  # noqa: F401 - ensure model registration
+    """Create tables, seed roles, risk thresholds, demo data source, and bootstrap users."""
+    from app.models import audit, datasource, rule, user  # noqa: F401 - ensure model registration
 
     Base.metadata.create_all(bind=engine)
     with Session(engine) as db:
         _seed_roles(db)
+        db.commit()
+        _seed_risk_thresholds(db)
+        db.commit()
+        _seed_demo_data_source(db)
+        db.commit()
+        _seed_import_sources(db)
         db.commit()
         _seed_admin(db)
         db.commit()
@@ -38,6 +87,44 @@ def _seed_roles(db: Session) -> None:
         if code in existing:
             continue
         db.add(Role(code=code, name=name, description=description))
+
+
+def _seed_risk_thresholds(db: Session) -> None:
+    existing = {row.level for row in db.query(RiskThreshold).all()}
+    for level, min_score in DEFAULT_RISK_THRESHOLDS:
+        if level in existing:
+            continue
+        db.add(RiskThreshold(level=level, min_score=min_score))
+
+
+def _seed_demo_data_source(db: Session) -> None:
+    code = _DEMO_STATIC_SOURCE["code"]
+    if db.query(DataSource).filter(DataSource.code == code).first():
+        return
+    db.add(DataSource(
+        code=code,
+        name=_DEMO_STATIC_SOURCE["name"],
+        source_type=_DEMO_STATIC_SOURCE["source_type"],
+        url=_DEMO_STATIC_SOURCE["url"],
+        weight=_DEMO_STATIC_SOURCE["weight"],
+        is_enabled=True,
+        description=_DEMO_STATIC_SOURCE["description"],
+    ))
+
+
+def _seed_import_sources(db: Session) -> None:
+    for spec in _IMPORT_SOURCES:
+        if db.query(DataSource).filter(DataSource.code == spec["code"]).first():
+            continue
+        db.add(DataSource(
+            code=spec["code"],
+            name=spec["name"],
+            source_type=spec["source_type"],
+            url="",
+            weight=1.0,
+            is_enabled=True,
+            description=spec["description"],
+        ))
 
 
 def _seed_admin(db: Session) -> None:

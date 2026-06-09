@@ -1,0 +1,127 @@
+{% extends "_layout.html" %}
+{% block content %}
+  <div class="users-page" id="rulesPage">
+    <section class="panel">
+      <header class="panel-header">
+        <h2>风险阈值</h2>
+        <p class="muted small">维护 low / medium / high / severe 四个等级的下限分值,必须严格递增。仅系统管理员可修改。</p>
+      </header>
+      <form id="thresholdForm" class="form-grid" autocomplete="off">
+        {% for level in ("low", "medium", "high", "severe") %}
+          <label>
+            <span>{{ level }}</span>
+            <input data-threshold-level="{{ level }}" type="number" min="0" max="100" step="1" required>
+          </label>
+        {% endfor %}
+        <div class="form-actions">
+          <button type="submit" class="primary">保存阈值</button>
+          <p id="thresholdStatus" class="status"></p>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel">
+      <header class="panel-header">
+        <h2>敏感词</h2>
+        <p class="muted small">命中后增加风险分;停用即不再参与命中。系统管理员可新增与修改。</p>
+      </header>
+      <form id="sensitiveCreateForm" class="form-grid" autocomplete="off">
+        <label>
+          <span>关键词</span>
+          <input id="sk_keyword" name="keyword" type="text" maxlength="128" required>
+        </label>
+        <label>
+          <span>分类</span>
+          <input id="sk_category" name="category" type="text" maxlength="64">
+        </label>
+        <label>
+          <span>严重程度</span>
+          <select id="sk_severity" name="severity">
+            <option value="low">low</option>
+            <option value="medium" selected>medium</option>
+            <option value="high">high</option>
+            <option value="severe">severe</option>
+          </select>
+        </label>
+        <label class="checkbox">
+          <input id="sk_is_active" name="is_active" type="checkbox" checked>
+          <span>启用</span>
+        </label>
+        <label class="full">
+          <span>备注</span>
+          <input id="sk_remark" name="remark" type="text" maxlength="512">
+        </label>
+        <div class="form-actions">
+          <button type="submit" class="primary">新增敏感词</button>
+          <p id="sensitiveStatus" class="status"></p>
+        </div>
+      </form>
+      <div class="table-wrap" style="margin-top: 1rem;">
+        <table class="data-table" id="sensitiveTable">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>关键词</th>
+              <th>分类</th>
+              <th>严重程度</th>
+              <th>状态</th>
+              <th>更新时间</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="sensitiveTbody">
+            <tr><td colspan="7" class="muted">加载中...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel">
+      <header class="panel-header">
+        <h2>主体词</h2>
+        <p class="muted small">命中的舆情将被识别为受监控主体相关,会进入主体命中统计。系统管理员可新增与修改。</p>
+      </header>
+      <form id="subjectCreateForm" class="form-grid" autocomplete="off">
+        <label>
+          <span>关键词</span>
+          <input id="sbj_keyword" name="keyword" type="text" maxlength="128" required>
+        </label>
+        <label>
+          <span>分类</span>
+          <input id="sbj_category" name="category" type="text" maxlength="64">
+        </label>
+        <label class="checkbox">
+          <input id="sbj_is_active" name="is_active" type="checkbox" checked>
+          <span>启用</span>
+        </label>
+        <label class="full">
+          <span>备注</span>
+          <input id="sbj_remark" name="remark" type="text" maxlength="512">
+        </label>
+        <div class="form-actions">
+          <button type="submit" class="primary">新增主体词</button>
+          <p id="subjectStatus" class="status"></p>
+        </div>
+      </form>
+      <div class="table-wrap" style="margin-top: 1rem;">
+        <table class="data-table" id="subjectTable">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>关键词</th>
+              <th>分类</th>
+              <th>状态</th>
+              <th>更新时间</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="subjectTbody">
+            <tr><td colspan="6" class="muted">加载中...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <script src="/static/rules.js"></script>
+{% endblock %}

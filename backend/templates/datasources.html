@@ -1,0 +1,78 @@
+{% extends "_layout.html" %}
+{% block content %}
+  <div class="users-page">
+    <section class="panel">
+      <header class="panel-header">
+        <h2>新增数据源</h2>
+        <p class="muted small">支持 RSS、JSON URL、内置静态演示等类型。系统管理员可新增、修改、抓取与停用。</p>
+      </header>
+      <form id="dsCreateForm" class="form-grid" autocomplete="off">
+        <label>
+          <span>编码</span>
+          <input id="ds_code" name="code" type="text" maxlength="64" required>
+        </label>
+        <label>
+          <span>名称</span>
+          <input id="ds_name" name="name" type="text" maxlength="128" required>
+        </label>
+        <label>
+          <span>类型</span>
+          <select id="ds_source_type" name="source_type" required>
+            <option value="rss">RSS / Atom</option>
+            <option value="json_url">JSON URL</option>
+            <option value="static_demo">内置演示</option>
+          </select>
+        </label>
+        <label>
+          <span>权重 (0 - 10)</span>
+          <input id="ds_weight" name="weight" type="number" min="0" max="10" step="0.1" value="1.0">
+        </label>
+        <label class="full">
+          <span>URL (rss / json_url 必填)</span>
+          <input id="ds_url" name="url" type="text" maxlength="512" placeholder="https://...">
+        </label>
+        <label class="full">
+          <span>描述</span>
+          <input id="ds_description" name="description" type="text" maxlength="512">
+        </label>
+        <label class="checkbox">
+          <input id="ds_is_enabled" name="is_enabled" type="checkbox" checked>
+          <span>启用</span>
+        </label>
+        <div class="form-actions">
+          <button type="submit" class="primary">新增数据源</button>
+          <p id="dsCreateStatus" class="status"></p>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel">
+      <header class="panel-header">
+        <h2>数据源列表</h2>
+        <p class="muted small">触发抓取可立即把数据带入系统;重复内容会自动去重。</p>
+      </header>
+      <div class="table-wrap">
+        <table class="data-table" id="dsTable">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>编码</th>
+              <th>名称</th>
+              <th>类型</th>
+              <th>权重</th>
+              <th>状态</th>
+              <th>最近抓取</th>
+              <th>条目数</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="dsTbody">
+            <tr><td colspan="9" class="muted">加载中...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <script src="/static/datasources.js"></script>
+{% endblock %}

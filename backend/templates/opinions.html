@@ -1,0 +1,77 @@
+{% extends "_layout.html" %}
+{% block content %}
+  <div class="users-page">
+    <section class="panel">
+      <header class="panel-header">
+        <h2>舆情筛选</h2>
+        <p class="muted small">支持按关键词、数据源、发布时间范围过滤。风险等级 / 情感过滤将在阶段 6 接入。</p>
+      </header>
+      <form id="opinionFilter" class="form-grid" autocomplete="off">
+        <label>
+          <span>关键词</span>
+          <input id="op_q" name="q" type="text" maxlength="128" placeholder="在标题 / 正文中搜索">
+        </label>
+        <label>
+          <span>数据源</span>
+          <select id="op_source" name="source_id">
+            <option value="">全部</option>
+          </select>
+        </label>
+        <label>
+          <span>开始时间</span>
+          <input id="op_start" name="start_at" type="datetime-local">
+        </label>
+        <label>
+          <span>结束时间</span>
+          <input id="op_end" name="end_at" type="datetime-local">
+        </label>
+        <div class="form-actions">
+          <button type="submit" class="primary">查询</button>
+          <button type="button" id="opReset" class="link-button">重置</button>
+          <p id="opStatus" class="status"></p>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel">
+      <header class="panel-header">
+        <h2>舆情列表</h2>
+        <p class="muted small" id="opSummary">加载中...</p>
+      </header>
+      <div class="table-wrap">
+        <table class="data-table" id="opTable">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>标题</th>
+              <th>数据源</th>
+              <th>作者</th>
+              <th>发布时间</th>
+              <th>来源</th>
+            </tr>
+          </thead>
+          <tbody id="opTbody">
+            <tr><td colspan="6" class="muted">加载中...</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="form-actions" style="margin-top: 0.75rem;">
+        <button type="button" id="opPrev" class="link-button">上一页</button>
+        <span id="opPager" class="muted small"></span>
+        <button type="button" id="opNext" class="link-button">下一页</button>
+      </div>
+    </section>
+  </div>
+
+  <div id="opinionDialog" class="dialog hidden" role="dialog" aria-modal="true">
+    <div class="dialog-card" style="width: min(720px, 95vw);">
+      <header>
+        <h3 id="opinionDialogTitle">舆情详情</h3>
+        <button type="button" class="link-button" id="opinionDialogClose">关闭</button>
+      </header>
+      <div id="opinionDialogBody" class="muted small" style="white-space: pre-wrap; line-height: 1.6;">加载中...</div>
+    </div>
+  </div>
+
+  <script src="/static/opinions.js"></script>
+{% endblock %}

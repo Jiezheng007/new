@@ -1,0 +1,40 @@
+{
+  "records": [
+    {
+      "external_id": "json-001",
+      "title": "权威媒体发布专题报道",
+      "content": "权威媒体今日发布专题报道,回顾近期的行业变化,并对下一阶段的发展趋势作出预判。",
+      "url": "https://example.com/news/json-001",
+      "author": "演示编辑",
+      "language": "zh",
+      "published_at": "2026-06-08T10:00:00"
+    },
+    {
+      "external_id": "json-002",
+      "title": "监管部门通报合规情况",
+      "content": "监管部门发布最新合规情况通报,多家企业因违规被要求整改,行业整体合规意识正在提升。",
+      "url": "https://example.com/news/json-002",
+      "author": "演示通讯",
+      "language": "zh",
+      "published_at": "2026-06-08T09:15:00"
+    },
+    {
+      "external_id": "json-003",
+      "title": "行业论坛聚焦创新发展",
+      "content": "今日举行的行业论坛聚焦创新发展,与会嘉宾围绕技术演进、生态合作等议题展开深入讨论。",
+      "url": "https://example.com/news/json-003",
+      "author": "演示观察",
+      "language": "zh",
+      "published_at": "2026-06-08T08:00:00"
+    },
+    {
+      "external_id": "json-004",
+      "title": "用户反馈产品体验优化",
+      "content": "多位用户在公开渠道反馈,产品在最新更新后体验有明显优化,响应速度与稳定性均有所提升。",
+      "url": "https://example.com/news/json-004",
+      "author": "演示用户",
+      "language": "zh",
+      "published_at": "2026-06-07T20:00:00"
+    }
+  ]
+}

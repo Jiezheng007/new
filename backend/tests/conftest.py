@@ -16,7 +16,9 @@ from app.core.config import get_settings  # noqa: E402
 from app.core.security import hash_password  # noqa: E402
 from app.db.session import Base, get_db  # noqa: E402
 from app.main import create_app  # noqa: E402
+from app.models.datasource import DataSource  # noqa: E402
 from app.models.role_codes import ROLE_SEEDS, RoleCode  # noqa: E402
+from app.models.rule import RiskThreshold  # noqa: E402
 from app.models.user import Role, User  # noqa: E402
 
 
@@ -63,6 +65,25 @@ def app(test_db_url, monkeypatch):
             User(username="auditor", full_name="审计", password_hash=hash_password("auditor123"), role_id=auditor_role.id),
             User(username="viewer", full_name="查看", password_hash=hash_password("viewer123"), role_id=viewer_role.id),
             User(username="disabled", full_name="停用", password_hash=hash_password("disabled123"), is_active=False, role_id=viewer_role.id),
+        ])
+        db.add_all([
+            RiskThreshold(level="low", min_score=0),
+            RiskThreshold(level="medium", min_score=30),
+            RiskThreshold(level="high", min_score=60),
+            RiskThreshold(level="severe", min_score=85),
+        ])
+        db.add(DataSource(
+            code="demo_static",
+            name="内置演示数据源",
+            source_type="static_demo",
+            url="",
+            weight=1.0,
+            is_enabled=True,
+            description="测试夹具内置的演示数据源",
+        ))
+        db.add_all([
+            DataSource(code="import_csv", name="CSV 导入聚合", source_type="csv", url="", weight=1.0, is_enabled=True, description="测试夹具"),
+            DataSource(code="import_json", name="JSON 导入聚合", source_type="json_import", url="", weight=1.0, is_enabled=True, description="测试夹具"),
         ])
         db.commit()
 

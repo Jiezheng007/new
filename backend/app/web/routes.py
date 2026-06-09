@@ -74,10 +74,10 @@ def login_alias(request: Request, db: Session = Depends(get_db)) -> HTMLResponse
 
 _PAGE_KEY_TO_PATH = {
     "workbench": "workbench.html",
-    "datasource": "placeholder.html",
-    "rules": "placeholder.html",
-    "import": "placeholder.html",
-    "opinions": "placeholder.html",
+    "datasources": "datasources.html",
+    "rules": "rules.html",
+    "import": "import.html",
+    "opinions": "opinions.html",
     "alerts": "placeholder.html",
     "tickets": "placeholder.html",
     "reports": "placeholder.html",
@@ -116,7 +116,7 @@ def render_page(page_key: str, request: Request, db: Session = Depends(get_db)) 
 def _page_title(key: str) -> str:
     titles = {
         "workbench": "工作台",
-        "datasource": "数据源管理",
+        "datasources": "数据源管理",
         "rules": "风险规则",
         "import": "数据导入",
         "opinions": "舆情列表",

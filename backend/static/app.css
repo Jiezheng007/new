@@ -304,6 +304,7 @@ code {
   padding-top: 1.4rem;
 }
 .form-grid label.checkbox input { width: 16px; height: 16px; }
+.form-grid label.full { grid-column: 1 / -1; }
 .form-grid .form-actions {
   grid-column: 1 / -1;
   display: flex;

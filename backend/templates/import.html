@@ -1,0 +1,61 @@
+{% extends "_layout.html" %}
+{% block content %}
+  <div class="users-page">
+    <section class="panel">
+      <header class="panel-header">
+        <h2>演示数据一键导入</h2>
+        <p class="muted small">无网络环境下,可通过此按钮加载随系统内置的 CSV / JSON 示例数据,用于工作流演示与审计验证。</p>
+      </header>
+      <div class="form-actions">
+        <button type="button" id="loadDemo" class="primary">加载演示数据</button>
+        <a class="link-button" href="/static/demo/sample_opinions.csv" download>下载示例 CSV</a>
+        <a class="link-button" href="/static/demo/sample_opinions.json" download>下载示例 JSON</a>
+        <p id="demoStatus" class="status"></p>
+      </div>
+    </section>
+
+    <section class="panel">
+      <header class="panel-header">
+        <h2>CSV 上传</h2>
+        <p class="muted small">必填列: <code>title</code>, <code>content</code>。可选列: <code>external_id</code>, <code>url</code>, <code>author</code>, <code>language</code>, <code>published_at</code>。</p>
+      </header>
+      <form id="csvForm" class="form-grid" autocomplete="off">
+        <label class="full">
+          <span>CSV 文件</span>
+          <input id="csvFile" name="file" type="file" accept=".csv,text/csv" required>
+        </label>
+        <div class="form-actions">
+          <button type="submit" class="primary">上传并导入</button>
+          <p id="csvStatus" class="status"></p>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel">
+      <header class="panel-header">
+        <h2>JSON 上传</h2>
+        <p class="muted small">支持 JSON 数组,或包含 <code>records</code> / <code>items</code> / <code>data</code> 字段的对象。每条记录需含 <code>title</code> 与 <code>content</code>。</p>
+      </header>
+      <form id="jsonForm" class="form-grid" autocomplete="off">
+        <label class="full">
+          <span>JSON 文件</span>
+          <input id="jsonFile" name="file" type="file" accept=".json,application/json" required>
+        </label>
+        <div class="form-actions">
+          <button type="submit" class="primary">上传并导入</button>
+          <p id="jsonStatus" class="status"></p>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel">
+      <header class="panel-header">
+        <h2>最近一次导入结果</h2>
+        <p class="muted small">每次提交后,会展示接收 / 拒绝 / 重复计数与错误明细。</p>
+      </header>
+      <pre id="importResult" class="muted small" style="background: #f8fafc; border: 1px solid var(--border); border-radius: 6px; padding: 0.75rem; max-height: 320px; overflow: auto;">暂无</pre>
+    </section>
+  </div>
+
+  <script src="/static/import.js"></script>
+{% endblock %}
