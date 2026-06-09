@@ -1,0 +1,174 @@
+{% extends "_layout.html" %}
+{% block content %}
+  <div class="tickets-page">
+    <section class="panel">
+      <header class="panel-header">
+        <h2>工单筛选</h2>
+        <p class="muted small">已确认的预警可以转为工单;处置人员仅能看到分配给自己的工单。</p>
+      </header>
+      <form id="ticketFilter" class="form-grid" autocomplete="off">
+        <label>
+          <span>关键词</span>
+          <input id="tk_q" name="q" type="text" maxlength="128" placeholder="在标题 / 正文中搜索">
+        </label>
+        <label>
+          <span>状态</span>
+          <select id="tk_status" name="status">
+            <option value="">全部</option>
+            <option value="unassigned">待分配</option>
+            <option value="in_progress">进行中</option>
+            <option value="completed">已完成</option>
+            <option value="archived">已归档</option>
+          </select>
+        </label>
+        <label>
+          <span>风险等级</span>
+          <select id="tk_level" name="risk_level">
+            <option value="">全部</option>
+            <option value="high">高</option>
+            <option value="severe">严重</option>
+          </select>
+        </label>
+        <label>
+          <span>处置人</span>
+          <select id="tk_assignee" name="assignee_id">
+            <option value="">全部</option>
+          </select>
+        </label>
+        <label>
+          <span>开始时间</span>
+          <input id="tk_start" name="start_at" type="datetime-local">
+        </label>
+        <label>
+          <span>结束时间</span>
+          <input id="tk_end" name="end_at" type="datetime-local">
+        </label>
+        <div class="form-actions">
+          <button type="submit" class="primary">查询</button>
+          <button type="button" id="tkReset" class="link-button">重置</button>
+          <p id="tkStatus" class="status"></p>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel">
+      <header class="panel-header">
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;">
+          <h2 style="margin: 0;">工单列表</h2>
+          <div>
+            <button type="button" id="tkNewBtn" class="primary" style="display: none;">从已确认预警创建</button>
+            <p class="muted small" id="tkSummary" style="margin: 0.5rem 0 0;">加载中...</p>
+          </div>
+        </div>
+      </header>
+      <div class="table-wrap">
+        <table class="data-table" id="tkTable">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>标题</th>
+              <th>风险</th>
+              <th>状态</th>
+              <th>处置人</th>
+              <th>创建时间</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="tkTbody">
+            <tr><td colspan="7" class="muted">加载中...</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="form-actions" style="margin-top: 0.75rem;">
+        <button type="button" id="tkPrev" class="link-button">上一页</button>
+        <span id="tkPager" class="muted small"></span>
+        <button type="button" id="tkNext" class="link-button">下一页</button>
+      </div>
+    </section>
+  </div>
+
+  <div id="ticketDialog" class="dialog hidden" role="dialog" aria-modal="true">
+    <div class="dialog-card" style="width: min(820px, 95vw);">
+      <header>
+        <h3 id="ticketDialogTitle">工单详情</h3>
+        <button type="button" class="link-button" id="ticketDialogClose">关闭</button>
+      </header>
+      <div id="ticketDialogBody" class="muted small" style="white-space: pre-wrap; line-height: 1.6; max-height: 65vh; overflow-y: auto;">加载中...</div>
+      <footer class="form-actions" id="ticketDialogFooter" style="margin-top: 1rem; display: none; flex-wrap: wrap; gap: 0.5rem;"></footer>
+      <p id="ticketDialogStatus" class="status"></p>
+    </div>
+  </div>
+
+  <div id="assignDialog" class="dialog hidden" role="dialog" aria-modal="true">
+    <div class="dialog-card" style="width: min(480px, 90vw);">
+      <header>
+        <h3>指派 / 重新指派</h3>
+        <button type="button" class="link-button" id="assignDialogClose">关闭</button>
+      </header>
+      <div style="margin-bottom: 1rem; display: flex; flex-direction: column; gap: 0.5rem;">
+        <label class="muted small">处置人 (仅可选择处置人员)
+          <select id="assignSelect" style="width: 100%; padding: 0.5rem 0.7rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.95rem;"></select>
+        </label>
+        <label class="muted small">标题 (可选)
+          <input id="assignTitle" type="text" maxlength="255" style="width: 100%; padding: 0.5rem 0.7rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.95rem;">
+        </label>
+        <label class="muted small">描述 (可选)
+          <textarea id="assignDescription" rows="3" maxlength="2000" style="width: 100%; padding: 0.55rem 0.7rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.95rem; font-family: inherit;"></textarea>
+        </label>
+      </div>
+      <div class="form-actions">
+        <button type="button" id="assignSubmit" class="primary">提交指派</button>
+        <button type="button" id="assignCancel" class="link-button">取消</button>
+        <p id="assignStatus" class="status"></p>
+      </div>
+    </div>
+  </div>
+
+  <div id="completeDialog" class="dialog hidden" role="dialog" aria-modal="true">
+    <div class="dialog-card" style="width: min(480px, 90vw);">
+      <header>
+        <h3>提交处置结果</h3>
+        <button type="button" class="link-button" id="completeDialogClose">关闭</button>
+      </header>
+      <div style="margin-bottom: 1rem;">
+        <p class="muted small">请填写处置结果 (至少 2 个字符),系统会记录到审计日志。</p>
+        <textarea id="completeResult" rows="4" maxlength="2000" style="width: 100%; padding: 0.55rem 0.7rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.95rem; font-family: inherit;"></textarea>
+      </div>
+      <div class="form-actions">
+        <button type="button" id="completeSubmit" class="primary">提交完成</button>
+        <button type="button" id="completeCancel" class="link-button">取消</button>
+        <p id="completeStatus" class="status"></p>
+      </div>
+    </div>
+  </div>
+
+  <div id="createDialog" class="dialog hidden" role="dialog" aria-modal="true">
+    <div class="dialog-card" style="width: min(520px, 95vw);">
+      <header>
+        <h3>将已确认的预警转为工单</h3>
+        <button type="button" class="link-button" id="createDialogClose">关闭</button>
+      </header>
+      <div style="margin-bottom: 1rem; display: flex; flex-direction: column; gap: 0.5rem;">
+        <p class="muted small" id="createDialogHint">选择一位处置人开始流程,或留空以“待分配”创建。</p>
+        <label class="muted small">处置人 (可选)
+          <select id="createSelect" style="width: 100%; padding: 0.5rem 0.7rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.95rem;">
+            <option value="">— 待分配 —</option>
+          </select>
+        </label>
+        <label class="muted small">标题 (可选,默认使用预警标题)
+          <input id="createTitle" type="text" maxlength="255" style="width: 100%; padding: 0.5rem 0.7rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.95rem;">
+        </label>
+        <label class="muted small">描述 (可选)
+          <textarea id="createDescription" rows="3" maxlength="2000" style="width: 100%; padding: 0.55rem 0.7rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.95rem; font-family: inherit;"></textarea>
+        </label>
+      </div>
+      <div class="form-actions">
+        <button type="button" id="createSubmit" class="primary">创建工单</button>
+        <button type="button" id="createCancel" class="link-button">取消</button>
+        <p id="createStatus" class="status"></p>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/tickets.js"></script>
+{% endblock %}

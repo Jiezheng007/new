@@ -36,6 +36,9 @@
   // Mirrors the API role set in app/api/alerts.py so the UI hides
   // confirm/ignore actions for read-only roles.
   const CAN_WRITE = (window.__userRole === "admin" || window.__userRole === "risk_control");
+  // Only confirmed alerts can spawn tickets, and only managers (admin /
+  // risk_control) can call POST /api/tickets/from-alert.
+  const CAN_CREATE_TICKET = CAN_WRITE;
 
   const riskPill = (level) => {
     const span = document.createElement("span");
@@ -191,6 +194,20 @@
       document.getElementById("alertIgnoreBtn").disabled = false;
     } else {
       footer.style.display = "none";
+    }
+
+    // Confirmed alerts: surface a "convert to ticket" shortcut that takes
+    // the user to the ticket list with a create dialog prefilled.
+    const createBtn = document.getElementById("alertCreateTicketBtn");
+    if (createBtn) {
+      if (it.status === "confirmed" && CAN_CREATE_TICKET) {
+        createBtn.style.display = "";
+        createBtn.onclick = () => {
+          window.location.href = `/web/tickets?from_alert=${it.id}`;
+        };
+      } else {
+        createBtn.style.display = "none";
+      }
     }
     document.getElementById("alertDialogStatus").textContent = "";
     document.getElementById("alertDialog").classList.remove("hidden");

@@ -9,4 +9,5 @@ from app.models.analysis import AnalysisResult  # noqa: F401
 from app.models.audit import AuditLog  # noqa: F401
 from app.models.datasource import DataSource, OpinionItem  # noqa: F401
 from app.models.rule import RiskThreshold, SensitiveKeyword, SubjectKeyword  # noqa: F401
+from app.models.ticket import Ticket  # noqa: F401
 from app.models.user import Role, User  # noqa: F401

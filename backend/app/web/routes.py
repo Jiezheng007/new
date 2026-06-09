@@ -79,7 +79,7 @@ _PAGE_KEY_TO_PATH = {
     "import": "import.html",
     "opinions": "opinions.html",
     "alerts": "alerts.html",
-    "tickets": "placeholder.html",
+    "tickets": "tickets.html",
     "reports": "placeholder.html",
     "users": "users.html",
     "audit": "placeholder.html",

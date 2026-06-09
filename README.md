@@ -3,7 +3,69 @@
 FastAPI + SQLAlchemy + Jinja2 modular monolith implementing the public-opinion
 risk-control MVP. See `PRD.md`, `requirement.md`, and `PRD.issue.md` for the
 full product, architecture, and issue plan; `generated-issues.md` is the
-phased issue list (current scope: Phase 5).
+phased issue list (current scope: Phase 6).
+
+## Phase 6 status — Ticket lifecycle
+
+Phase 1 built the authenticated shell; Phase 2 added user & role
+management; Phase 3 layered risk-rule configuration, public-data
+ingestion, and CSV / JSON import; Phase 4 wired the analysis + risk
+scoring pipeline; Phase 5 turned high / severe-risk items into a
+first-class alert lifecycle. Phase 6 closes the loop with a full ticket
+workflow on top of the confirmed alerts from Phase 5:
+
+- **`Ticket` ORM model** (`app/models/ticket.py`): one row per
+  confirmed alert, unique on `alert_id`. Four states — `unassigned`,
+  `in_progress`, `completed`, `archived` — plus snapshot fields
+  (risk level / score / title / description) and audit-friendly
+  per-transition columns (`assignee_*`, `started_at`, `completed_*`,
+  `archived_*`, `created_by_*`). The `OpinionItem` is also FK-linked
+  so the ticket still tells a coherent story if its source alert
+  is later re-computed.
+- **State machine** (`app/services/tickets.py`):
+  - `create_ticket_from_alert` — only `confirmed` alerts can be
+    converted (pending / ignored are rejected with HTTP 409).
+    Optional `assignee_id` jumps the ticket straight to
+    `in_progress`; otherwise it starts in `unassigned`.
+  - `assign_ticket` — legal from `unassigned` (→ `in_progress`),
+    `in_progress`, or `completed`. `archived` rejects with 409.
+  - `start_ticket` — handler accept. `completed` / `archived`
+    reject; assigned handler enforced both at API and service
+    layer so direct callers cannot bypass.
+  - `complete_ticket` — handler submits a non-blank
+    `handling_result` (≥ 2 chars). `in_progress` only.
+  - `archive_ticket` — risk-control closes the loop from
+    `completed` only. Already-archived is a no-op.
+- **API** (`/api/tickets`): list (filters: status, level, assignee,
+  keyword, time range), detail, `POST /from-alert`, `POST .../assign`,
+  `POST .../start`, `POST .../complete`, `POST .../archive`,
+  `GET .../summary`. Read access for admin / risk_control / handler
+  (handler is auto-scoped to their own tickets) / auditor. Write
+  access for admin / risk_control; handler can only `start` /
+  `complete` on their own assignments. Viewers are blocked from
+  every endpoint.
+- **Audit trail**: every state change writes an `AuditLog` row with
+  actor, action (`ticket.create` / `ticket.assign` / `ticket.start`
+  / `ticket.complete` / `ticket.archive`), target_id, result, IP
+  address, and a JSON detail (alert id, opinion id, risk level /
+  score, assignee, status). Invalid-state attempts and assignment
+  to a non-handler also write a `failure` audit row before the
+  error response.
+- **Web UI** (`/web/tickets`): server-rendered list page with the
+  same filter form as alerts, a status pill for the ticket state,
+  a detail dialog with full opinion + alert snapshot, an "assign /
+  re-assign" dialog (manager-only), a "submit handling result"
+  dialog (handler-only), and an "archive" action. The
+  `/web/alerts` detail dialog surfaces a "转为工单" shortcut that
+  deep-links into `/web/tickets?from_alert=<id>` and opens the
+  create dialog pre-populated with the alert's opinion title.
+- **Demo path** (continues from Phase 5): admin fetches the static
+  demo → 2 pending alerts → risk_control confirms one → risk_control
+  converts to ticket and assigns `handler` → handler completes with
+  a result → risk_control archives. The full chain is end-to-end
+  exerciseable in the UI without database edits.
+
+Test totals: **209 / 209 green** (171 from Phases 1–5 + 38 new for Phase 6).
 
 ## Phase 5 status — Alert lifecycle
 
@@ -403,18 +465,35 @@ curl -b cookies.txt -X POST http://localhost:8000/api/alerts/2/ignore \
   -H 'Content-Type: application/json' \
   -d '{"reason": "已与企业沟通确认为误报"}'
 
-# 9. Drill into a single opinion — the response includes the analysis
-#    section (sentiment, score, level, factors, explanation).
+# 9. Convert the confirmed alert (id=1) into a ticket, then assign
+#    the built-in 'handler' user (their id is stable in the demo DB).
+curl -b cookies.txt -X POST http://localhost:8000/api/tickets/from-alert \
+  -H 'Content-Type: application/json' \
+  -d '{"alert_id": 1, "assignee_id": 3}'
+
+# 10. Login as the handler and submit a handling result.
+curl -c handler.txt -X POST http://localhost:8000/api/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"username": "handler", "password": "handler123"}'
+curl -b handler.txt -X POST http://localhost:8000/api/tickets/1/complete \
+  -H 'Content-Type: application/json' \
+  -d '{"handling_result": "已与企业沟通并取得谅解"}'
+
+# 11. Login back as risk-control and archive the completed ticket.
+curl -b cookies.txt -X POST http://localhost:8000/api/tickets/1/archive
+
+# 12. Drill into a single opinion — the response includes the analysis
+#     section (sentiment, score, level, factors, explanation).
 curl -b cookies.txt http://localhost:8000/api/opinions/3 | python3 -m json.tool
 ```
 
-Phases 1–5 together demonstrate the full ingest → analyze → risk →
-alert pipeline. Phase 6 will layer the ticket lifecycle (confirmed
-alert → assigned → completed → archived) on top of the confirmed
-alerts.
+Phases 1–6 together demonstrate the full ingest → analyze → risk →
+alert → ticket pipeline. Phase 7 will layer the workbench dashboard
+on top.
 
 ## What's next
 
-`generated-issues.md` lists Phases 6–12. The next slice is **Phase 6
-(Issue 8)**: the ticket lifecycle (confirmed alert → assigned →
-completed → archived) on top of the confirmed alerts from Phase 5.
+`generated-issues.md` lists Phases 7–12. The next slice is **Phase 7
+(Issue 9)**: the workbench dashboard (opinion totals, negative ratio,
+alert pressure, pending work, latest alerts, seven-day trends) on top
+of the data wired up by Phases 1–6.
