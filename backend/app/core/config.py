@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./yuqing.db"
     bootstrap_admin_username: str = "admin"
     bootstrap_admin_password: str = "admin123"
+    nlp_provider: str = "keyword_nlp"
 
 
 @lru_cache

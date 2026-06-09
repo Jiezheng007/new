@@ -156,7 +156,7 @@ def test_manual_fetch_static_demo_persists_items(client):
         db.close()
     assert len(items) == 6
     titles = {it.title for it in items}
-    assert any("突发公共卫生" in t for t in titles)
+    assert any("重大" in t or "泄露" in t for t in titles)
 
 
 def test_manual_fetch_dedupes_on_repeat(client):

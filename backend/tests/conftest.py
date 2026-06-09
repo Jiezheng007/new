@@ -18,7 +18,7 @@ from app.db.session import Base, get_db  # noqa: E402
 from app.main import create_app  # noqa: E402
 from app.models.datasource import DataSource  # noqa: E402
 from app.models.role_codes import ROLE_SEEDS, RoleCode  # noqa: E402
-from app.models.rule import RiskThreshold  # noqa: E402
+from app.models.rule import RiskThreshold, SensitiveKeyword, SubjectKeyword  # noqa: E402
 from app.models.user import Role, User  # noqa: E402
 
 
@@ -71,6 +71,19 @@ def app(test_db_url, monkeypatch):
             RiskThreshold(level="medium", min_score=30),
             RiskThreshold(level="high", min_score=60),
             RiskThreshold(level="severe", min_score=85),
+        ])
+        db.add_all([
+            SensitiveKeyword(keyword="重大", category="通用", severity="high", remark="测试夹具"),
+            SensitiveKeyword(keyword="严重", category="通用", severity="high", remark="测试夹具"),
+            SensitiveKeyword(keyword="安全", category="公共", severity="severe", remark="测试夹具"),
+            SensitiveKeyword(keyword="事故", category="公共", severity="severe", remark="测试夹具"),
+            SensitiveKeyword(keyword="违规", category="合规", severity="medium", remark="测试夹具"),
+            SensitiveKeyword(keyword="投诉", category="消费", severity="low", remark="测试夹具"),
+        ])
+        db.add_all([
+            SubjectKeyword(keyword="监管部门", category="监管", remark="测试夹具"),
+            SubjectKeyword(keyword="某品牌", category="消费", remark="测试夹具"),
+            SubjectKeyword(keyword="某公司", category="企业", remark="测试夹具"),
         ])
         db.add(DataSource(
             code="demo_static",

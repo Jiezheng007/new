@@ -26,6 +26,7 @@ from app.schemas.datasources import (
 from app.services.audit import get_client_ip, record_audit
 from app.services.connectors import ConnectorError, get_connector
 from app.services.ingestion import IngestionError, ingest_via_connector
+from app.services.analysis import analyze_batch, opinions_by_ids
 
 
 router = APIRouter(prefix="/api/datasources", tags=["datasources"])
@@ -270,6 +271,18 @@ def manual_fetch(
     )
     source.latest_items_count = result.accepted
 
+    # Run analysis on the freshly inserted items. analyze_batch never
+    # raises on provider failure (it records status='failed'), so the
+    # fetch response is unaffected by an unhappy NLP service.
+    analyzed_count = 0
+    if result.sample_ids:
+        opinions = opinions_by_ids(db, result.sample_ids)
+        analyzed = analyze_batch(db, opinions)
+        analyzed_count = sum(1 for r in analyzed if r.status == "success")
+        failed_count = len(analyzed) - analyzed_count
+        if failed_count:
+            source.latest_fetch_message += f" analyzed={analyzed_count} failed={failed_count}"
+
     record_audit(
         db,
         actor=admin,
@@ -282,6 +295,7 @@ def manual_fetch(
             "accepted": result.accepted,
             "rejected": result.rejected,
             "duplicate": result.duplicate,
+            "analyzed": analyzed_count,
         },
         ip_address=ip,
     )

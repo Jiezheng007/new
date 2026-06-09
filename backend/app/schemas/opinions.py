@@ -4,7 +4,13 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+from app.schemas.analysis import (
+    RISK_LEVEL_VALUES,
+    SENTIMENT_VALUES,
+    AnalysisResultOut,
+)
 
 
 class OpinionItemOut(BaseModel):
@@ -23,8 +29,17 @@ class OpinionItemOut(BaseModel):
     content_hash: str
     origin: str
     created_at: datetime
+    # Phase 4: nested analysis summary so the UI can show sentiment,
+    # risk level, score, and status without a second request.
+    analysis: AnalysisResultOut = Field(default_factory=AnalysisResultOut)
 
 
 class OpinionListOut(BaseModel):
     total: int
     items: list[OpinionItemOut]
+
+
+# Allowed filter values mirrored here so the API contract is explicit.
+OPINION_SENTIMENT_FILTER = SENTIMENT_VALUES
+OPINION_RISK_LEVEL_FILTER = RISK_LEVEL_VALUES
+OPINION_ANALYSIS_STATUS_FILTER = {"pending", "success", "failed"}

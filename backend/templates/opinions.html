@@ -4,7 +4,7 @@
     <section class="panel">
       <header class="panel-header">
         <h2>舆情筛选</h2>
-        <p class="muted small">支持按关键词、数据源、发布时间范围过滤。风险等级 / 情感过滤将在阶段 6 接入。</p>
+        <p class="muted small">支持按关键词、数据源、发布时间、情感、风险等级与分析状态过滤。</p>
       </header>
       <form id="opinionFilter" class="form-grid" autocomplete="off">
         <label>
@@ -25,9 +25,38 @@
           <span>结束时间</span>
           <input id="op_end" name="end_at" type="datetime-local">
         </label>
+        <label>
+          <span>情感倾向</span>
+          <select id="op_sentiment" name="sentiment">
+            <option value="">全部</option>
+            <option value="positive">正面</option>
+            <option value="neutral">中性</option>
+            <option value="negative">负面</option>
+          </select>
+        </label>
+        <label>
+          <span>风险等级</span>
+          <select id="op_risk_level" name="risk_level">
+            <option value="">全部</option>
+            <option value="low">低</option>
+            <option value="medium">中</option>
+            <option value="high">高</option>
+            <option value="severe">严重</option>
+          </select>
+        </label>
+        <label>
+          <span>分析状态</span>
+          <select id="op_status" name="analysis_status">
+            <option value="">全部</option>
+            <option value="success">已完成</option>
+            <option value="pending">未分析</option>
+            <option value="failed">失败</option>
+          </select>
+        </label>
         <div class="form-actions">
           <button type="submit" class="primary">查询</button>
           <button type="button" id="opReset" class="link-button">重置</button>
+          <button type="button" id="opAnalyzePending" class="link-button">分析未完成项</button>
           <p id="opStatus" class="status"></p>
         </div>
       </form>
@@ -45,13 +74,15 @@
               <th>ID</th>
               <th>标题</th>
               <th>数据源</th>
-              <th>作者</th>
+              <th>情感</th>
+              <th>风险等级</th>
+              <th>分数</th>
+              <th>分析状态</th>
               <th>发布时间</th>
-              <th>来源</th>
             </tr>
           </thead>
           <tbody id="opTbody">
-            <tr><td colspan="6" class="muted">加载中...</td></tr>
+            <tr><td colspan="8" class="muted">加载中...</td></tr>
           </tbody>
         </table>
       </div>
@@ -64,12 +95,16 @@
   </div>
 
   <div id="opinionDialog" class="dialog hidden" role="dialog" aria-modal="true">
-    <div class="dialog-card" style="width: min(720px, 95vw);">
+    <div class="dialog-card" style="width: min(820px, 95vw);">
       <header>
         <h3 id="opinionDialogTitle">舆情详情</h3>
         <button type="button" class="link-button" id="opinionDialogClose">关闭</button>
       </header>
       <div id="opinionDialogBody" class="muted small" style="white-space: pre-wrap; line-height: 1.6;">加载中...</div>
+      <footer class="form-actions" style="margin-top: 1rem;">
+        <button type="button" id="opinionReanalyze" class="primary">重新分析</button>
+        <p id="opinionReanalyzeStatus" class="status"></p>
+      </footer>
     </div>
   </div>
 

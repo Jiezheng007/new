@@ -8,7 +8,7 @@ from app.core.security import hash_password
 from app.db.session import Base, engine
 from app.models.datasource import DataSource
 from app.models.role_codes import ROLE_SEEDS, RoleCode
-from app.models.rule import RiskThreshold
+from app.models.rule import RiskThreshold, SensitiveKeyword, SubjectKeyword
 from app.models.user import Role, User
 
 
@@ -28,6 +28,30 @@ DEFAULT_RISK_THRESHOLDS: list[tuple[str, int]] = [
     ("medium", 30),
     ("high", 60),
     ("severe", 85),
+]
+
+
+# Default sensitive / subject keywords so the demo and the risk-scoring
+# pipeline have a working rule set on first boot. Admins can edit or
+# disable any of these through the rule page; bootstrap only inserts
+# rows that are not already present.
+DEFAULT_SENSITIVE_KEYWORDS: list[tuple[str, str, str]] = [
+    ("重大", "通用", "high"),
+    ("严重", "通用", "high"),
+    ("安全", "公共", "severe"),
+    ("事故", "公共", "severe"),
+    ("违规", "合规", "medium"),
+    ("投诉", "消费", "low"),
+    ("泄露", "公共", "high"),
+    ("造假", "合规", "severe"),
+    ("召回", "消费", "high"),
+]
+
+DEFAULT_SUBJECT_KEYWORDS: list[tuple[str, str]] = [
+    ("监管部门", "监管"),
+    ("某品牌", "消费"),
+    ("某公司", "企业"),
+    ("示例科技公司", "企业"),
 ]
 
 
@@ -71,6 +95,10 @@ def init_db() -> None:
         db.commit()
         _seed_risk_thresholds(db)
         db.commit()
+        _seed_sensitive_keywords(db)
+        db.commit()
+        _seed_subject_keywords(db)
+        db.commit()
         _seed_demo_data_source(db)
         db.commit()
         _seed_import_sources(db)
@@ -95,6 +123,22 @@ def _seed_risk_thresholds(db: Session) -> None:
         if level in existing:
             continue
         db.add(RiskThreshold(level=level, min_score=min_score))
+
+
+def _seed_sensitive_keywords(db: Session) -> None:
+    existing = {row.keyword for row in db.query(SensitiveKeyword).all()}
+    for keyword, category, severity in DEFAULT_SENSITIVE_KEYWORDS:
+        if keyword in existing:
+            continue
+        db.add(SensitiveKeyword(keyword=keyword, category=category, severity=severity))
+
+
+def _seed_subject_keywords(db: Session) -> None:
+    existing = {row.keyword for row in db.query(SubjectKeyword).all()}
+    for keyword, category in DEFAULT_SUBJECT_KEYWORDS:
+        if keyword in existing:
+            continue
+        db.add(SubjectKeyword(keyword=keyword, category=category))
 
 
 def _seed_demo_data_source(db: Session) -> None:

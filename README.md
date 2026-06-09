@@ -3,7 +3,54 @@
 FastAPI + SQLAlchemy + Jinja2 modular monolith implementing the public-opinion
 risk-control MVP. See `PRD.md`, `requirement.md`, and `PRD.issue.md` for the
 full product, architecture, and issue plan; `generated-issues.md` is the
-phased issue list (current scope: Phase 3).
+phased issue list (current scope: Phase 4).
+
+## Phase 4 status — Analysis + risk scoring
+
+Phase 1 built the authenticated shell; Phase 2 added user & role
+management; Phase 3 layered risk-rule configuration, public-data
+ingestion, and CSV / JSON import. Phase 4 wires the analysis pipeline on
+top: every persisted opinion flows through a replaceable `NlpProvider`,
+is scored against the active rules, and is exposed with sentiment, risk
+score, level, and a per-factor explanation.
+
+- **NLP provider abstraction** (`app/services/nlp/`): `BaseNlpProvider` +
+  `NlpResult` contract. Default implementation is the deterministic
+  `KeywordNlpProvider` (Chinese keyword dictionary) so the demo runs
+  offline. Pluggable registry reads `NLP_PROVIDER` from settings.
+- **Risk scoring** (`app/services/scoring.py`): `compute_risk` combines
+  sentiment, severity-weighted sensitive-keyword hits, monitored subject
+  hits, source weight, and a recency heat proxy into a 0-100 score,
+  capped at 100. The score is then mapped to `low` / `medium` / `high` /
+  `severe` using the `RiskThreshold` rows from Phase 3 (so changing
+  thresholds re-maps every opinion without re-running NLP).
+- **Analysis orchestration** (`app/services/analysis.py`): `analyze_opinion`
+  runs NLP + scoring for one item and upserts the `AnalysisResult` row.
+  Provider failures are caught and stored as `status='failed'` with an
+  `error_message`; the function never raises. `analyze_batch` is used by
+  ingestion / import / retry paths. `pending_opinions` returns items
+  without a successful analysis for the manual retry endpoint.
+- **Auto-analysis on ingestion**: after every successful `manual_fetch`,
+  CSV / JSON upload, or `import/demo` call, the API runs `analyze_batch`
+  on the freshly inserted `OpinionItem` rows. Failed analyses do not
+  block the request — the fetch / import response is unaffected.
+- **API + UI**: every `OpinionItemOut` now includes a nested
+  `AnalysisResultOut` (sentiment, confidence, provider, score, level,
+  status, error_message, factors, explanation, analyzed_at). The list
+  endpoint accepts `sentiment`, `risk_level`, and `analysis_status`
+  filters. Two new endpoints: `POST /api/opinions/{id}/analyze` and
+  `POST /api/opinions/analyze-pending` — both admin / risk_control, both
+  write audit rows. The web UI opinion list shows sentiment / level /
+  status pills; the detail dialog renders the analysis section with
+  factors + a "重新分析" button.
+- **Demo data refresh**: the built-in `static_demo` source and the
+  bundled CSV / JSON sample data were updated so two of the items
+  contain clearly negative content + sensitive keywords (重大, 安全,
+  严重, 泄露, 违规, 查处) and a monitored subject (监管部门, 某品牌).
+  After a fresh `seed_data.py`, the demo immediately shows a
+  high/severe-risk opinion in the list with a full explanation.
+
+Test totals: **141 / 141 green** (114 from Phases 1–3 + 27 new for Phase 4).
 
 ## Phase 3 status — Risk rules, ingestion, and import
 
@@ -45,16 +92,19 @@ backend/
     core/       settings + security primitives (password hashing, JWT)
     db/         SQLAlchemy engine, session, Base
     models/     ORM models (User, Role, AuditLog, SensitiveKeyword,
-                SubjectKeyword, RiskThreshold, DataSource, OpinionItem)
+                SubjectKeyword, RiskThreshold, DataSource, OpinionItem,
+                AnalysisResult)
     schemas/    pydantic request/response models
-    services/   bootstrap, audit logging, connectors, ingestion, importers
+    services/   bootstrap, audit logging, connectors, ingestion, importers,
+                nlp (provider abstraction + keyword implementation),
+                scoring (rule-based risk score), analysis (orchestration)
     web/        Jinja2 page routes
     main.py     create_app() entrypoint
   static/       CSS + JS for the Web UI, bundled demo CSV / JSON samples
   templates/    Jinja2 templates (login, layout, workbench, users, rules,
                 datasources, opinions, import, …)
   tests/        pytest suite (auth, web, user_management, rules,
-                datasources, imports)
+                datasources, imports, analysis)
   scripts/      dev helpers (seed_data.py)
   requirements.txt
   pytest.ini
@@ -97,6 +147,7 @@ Copy `.env.example` to `.env` to override defaults. Notable settings:
 | `ACCESS_TOKEN_TTL_MINUTES`   | `480`                         | JWT lifetime                               |
 | `BOOTSTRAP_ADMIN_USERNAME`   | `admin`                       | Admin user created on first boot           |
 | `BOOTSTRAP_ADMIN_PASSWORD`   | `admin123`                    | Admin password created on first boot       |
+| `NLP_PROVIDER`               | `keyword_nlp`                 | NLP provider name (registry in `app/services/nlp`) |
 
 ## API quick reference
 
@@ -146,8 +197,10 @@ Opinion items (any role with `opinion:read`):
 
 | method | path                                | purpose                                                                 |
 | ------ | ----------------------------------- | ----------------------------------------------------------------------- |
-| GET    | `/api/opinions`                     | list with `q`, `source_id`, `start_at`, `end_at`, `limit`, `offset`     |
-| GET    | `/api/opinions/{id}`                | detail of a single opinion item                                         |
+| GET    | `/api/opinions`                     | list with `q`, `source_id`, `source_code`, `start_at`, `end_at`, `sentiment`, `risk_level`, `analysis_status`, `limit`, `offset` |
+| GET    | `/api/opinions/{id}`                | detail of a single opinion item (with nested `analysis`)               |
+| POST   | `/api/opinions/{id}/analyze`        | admin / risk_control — re-run NLP + scoring for one item, write audit   |
+| POST   | `/api/opinions/analyze-pending`     | admin / risk_control — re-run for items without a successful analysis   |
 
 Imports (admin / risk_control):
 
@@ -180,8 +233,9 @@ pytest
 ```
 
 The suite provisions an isolated SQLite database per test run, seeds all five
-roles plus a disabled user, the four risk thresholds, the static demo data
-source, and the CSV / JSON import sinks. The full suite (114 tests) covers:
+roles plus a disabled user, the four risk thresholds, the default sensitive +
+subject keyword set, the static demo data source, and the CSV / JSON import
+sinks. The full suite (141 tests) covers:
 
 - **Auth** (`tests/test_auth.py`): login success / wrong-password / unknown-
   user / disabled-user rejection; logout clears the cookie; `/me` accepts
@@ -209,19 +263,37 @@ source, and the CSV / JSON import sinks. The full suite (114 tests) covers:
   for non-admins.
 - **Data sources & opinions** (`tests/test_datasources.py`): admin-only
   CRUD on data sources; missing URL for RSS / json_url is rejected with 422;
-  manual fetch of the static demo persists 6 items and re-fetch dedupes to
-  6 duplicates; disabled source returns 400; RSS without `feedparser`
-  returns 502 with a clear message; opinion list / detail enforce the
-  `opinion:read` role set (handler is blocked); keyword, source, and
-  time-range filters work; the `/web/datasources` and `/web/opinions` pages
-  render for the right roles and return 403 / 401 otherwise.
+  manual fetch of the static demo persists 6 items, runs auto-analysis,
+  and re-fetch dedupes to 6 duplicates; disabled source returns 400; RSS
+  without `feedparser` returns 502 with a clear message; opinion list /
+  detail enforce the `opinion:read` role set (handler is blocked); keyword,
+  source, and time-range filters work; the `/web/datasources` and
+  `/web/opinions` pages render for the right roles and return 403 / 401
+  otherwise.
 - **Imports** (`tests/test_imports.py`): CSV and JSON uploads validate
   required columns / fields; required-column-missing returns 400; per-row
   validation failures (e.g. blank title) are reported in the response body
   without aborting the import; re-upload dedupes correctly; the bundled
   demo endpoint loads 5 CSV + 4 JSON records on first call and 9 duplicates
-  on re-call; non-importer roles get 403; the `/web/import` page renders for
-  risk-control and returns 403 for handler.
+  on re-call; every accepted row is auto-analyzed; non-importer roles get
+  403; the `/web/import` page renders for risk-control and returns 403 for
+  handler.
+- **Analysis + risk scoring** (`tests/test_analysis.py`): the
+  `KeywordNlpProvider` returns the expected sentiment for positive /
+  negative / neutral / unsupported-language text; `compute_risk` produces
+  deterministic factor math and respects the per-severity weight table;
+  the cap on each factor is enforced and the raw contribution is
+  preserved in the persisted factors dict; `analyze_opinion` persists a
+  successful `AnalysisResult` row and never raises on provider / language
+  failure (records `status='failed'` + `error_message`); `analyze_batch`
+  runs against ingestion sample_ids; re-analysis replaces the prior row
+  (one-to-one); `pending_opinions` returns items without a successful
+  analysis; `POST /api/opinions/{id}/analyze` and
+  `POST /api/opinions/analyze-pending` are gated to admin / risk_control,
+  write audit rows, and update the level when thresholds change; list
+  filters `sentiment` / `risk_level` / `analysis_status` work and validate
+  their values; the `/web/opinions` page renders the new sentiment /
+  level / status columns + 重新分析 button.
 
 ## Demo happy path (no external network needed)
 
@@ -231,23 +303,32 @@ curl -c cookies.txt -X POST http://localhost:8000/api/auth/login \
   -H 'Content-Type: application/json' \
   -d '{"username": "admin", "password": "admin123"}'
 
-# 2. Fetch the built-in static demo (6 items)
+# 2. Fetch the built-in static demo (6 items, auto-analyzed)
 curl -b cookies.txt -X POST http://localhost:8000/api/datasources/1/fetch
 
-# 3. Load the bundled CSV + JSON sample data (5 + 4 items)
+# 3. Load the bundled CSV + JSON sample data (5 + 4 items, auto-analyzed)
 curl -b cookies.txt -X POST http://localhost:8000/api/import/demo
 
-# 4. Risk-control user can now see 10+ opinion items
+# 4. Risk-control user can now see 10+ opinion items with sentiment + risk
 curl -b cookies.txt 'http://localhost:8000/api/opinions?limit=20'
+
+# 5. Filter the list to high / severe risk only
+curl -b cookies.txt 'http://localhost:8000/api/opinions?risk_level=high'
+curl -b cookies.txt 'http://localhost:8000/api/opinions?risk_level=severe'
+
+# 6. Drill into a single opinion — the response includes the analysis
+#    section (sentiment, score, level, factors, explanation).
+curl -b cookies.txt http://localhost:8000/api/opinions/3 | python3 -m json.tool
 ```
 
-Phase 3 alone demonstrates the ingestion + audit + RBAC + UI pipeline. Phase 6
-will layer NLP + risk scoring on top of these same opinion items.
+Phase 4 alone demonstrates the ingestion + auto-analysis + rule-based risk
+scoring + RBAC + UI pipeline. Phase 5 will layer the alert lifecycle
+(pending → confirmed → ignored → ticket) on top of these high-risk items.
 
 ## What's next
 
-`generated-issues.md` lists Phases 4–12. The next slice is **Phase 4**:
-opinion analysis with an `NlpProvider` abstraction, risk-score explanation,
-and integration with the rules/thresholds built here. The `OpinionItem`
-content + `SensitiveKeyword` / `SubjectKeyword` / `RiskThreshold` tables are
-already shaped for that next step.
+`generated-issues.md` lists Phases 5–12. The next slice is **Phase 5**:
+automatic pending-alert creation on high / severe risk, plus the
+confirm / ignore / convert-to-ticket workflow for risk-control users. The
+`AnalysisResult.level` + `score` + `explanation` populated by Phase 4
+are the trigger source for that next step.

@@ -19,6 +19,8 @@ def _utc(year: int, month: int, day: int, hour: int = 9, minute: int = 0) -> dat
 
 # Hand-curated demo items. Timestamps are anchored to "now - N hours" at
 # fetch time so the dashboard's seven-day trend is non-empty in any demo run.
+# Items 003 and 004 include clearly negative content + sensitive keywords so
+# the risk-scoring pipeline (Phase 4) has a non-trivial demo path.
 def _build_demo_records() -> list[RawRecord]:
     now = datetime.now(timezone.utc)
     return [
@@ -34,18 +36,18 @@ def _build_demo_records() -> list[RawRecord]:
         ),
         RawRecord(
             external_id="demo-002",
-            title="某城市出现突发公共卫生事件,官方及时回应",
-            content="今日某城市出现突发公共卫生事件,相关部门第一时间发布通报,启动应急预案,群众反馈良好。",
+            title="监管部门召开行业座谈会,强调合规经营",
+            content="监管部门今日召开行业座谈会,要求相关企业严格遵守法律法规,强调合规经营的重要性,并对近期违规案例进行了通报。",
             url="https://example.com/news/demo-002",
-            author="演示记者",
+            author="演示通讯",
             language="zh",
             published_at=now - timedelta(hours=5),
-            raw_payload={"demo": True, "category": "民生"},
+            raw_payload={"demo": True, "category": "监管"},
         ),
         RawRecord(
             external_id="demo-003",
-            title="网友爆料:某品牌产品出现严重质量问题",
-            content="多名网友在社交平台反映,某知名品牌产品在使用过程中出现严重质量问题,呼吁监管部门介入调查。",
+            title="网友爆料:某品牌产品出现严重质量问题,监管部门已介入",
+            content="多名网友在社交平台反映,某品牌产品在使用过程中出现严重质量问题,涉及安全事故,疑似重大隐患,呼吁监管部门介入调查。监管部门表示已启动核查程序,对该企业开展合规检查。",
             url="https://example.com/news/demo-003",
             author="演示用户",
             language="zh",
@@ -54,13 +56,13 @@ def _build_demo_records() -> list[RawRecord]:
         ),
         RawRecord(
             external_id="demo-004",
-            title="监管部门召开行业座谈会,强调合规经营",
-            content="监管部门今日召开行业座谈会,要求相关企业严格遵守法律法规,强调合规经营的重要性,并对近期违规案例进行了通报。",
+            title="某公司被曝数据泄露事件,涉嫌违规被查处",
+            content="某公司今日被曝发生用户数据泄露事件,涉及大量个人信息,监管部门已介入调查,初步认定涉嫌违规,责令其立即整改并公开通报。",
             url="https://example.com/news/demo-004",
-            author="演示通讯",
+            author="演示记者",
             language="zh",
             published_at=now - timedelta(hours=14),
-            raw_payload={"demo": True, "category": "监管"},
+            raw_payload={"demo": True, "category": "安全"},
         ),
         RawRecord(
             external_id="demo-005",

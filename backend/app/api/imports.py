@@ -27,6 +27,7 @@ from app.services.connectors import (
 )
 from app.services.ingestion import IngestionResult, ingest_records
 from app.services.importers import ImportParseError, parse_csv, parse_json
+from app.services.analysis import analyze_batch, opinions_by_ids
 
 
 router = APIRouter(prefix="/api/import", tags=["import"])
@@ -100,6 +101,12 @@ async def import_csv(
     result.errors = parse_errors + result.errors
     rejected_total = len(parse_errors) + result.rejected
 
+    analyzed_count = 0
+    if result.sample_ids:
+        opinions = opinions_by_ids(db, result.sample_ids)
+        analyzed = analyze_batch(db, opinions)
+        analyzed_count = sum(1 for r in analyzed if r.status == "success")
+
     record_audit(
         db,
         actor=user,
@@ -112,6 +119,7 @@ async def import_csv(
             "accepted": result.accepted,
             "rejected": rejected_total,
             "duplicate": result.duplicate,
+            "analyzed": analyzed_count,
         },
         ip_address=ip,
     )
@@ -166,6 +174,12 @@ async def import_json(
     result.errors = parse_errors + result.errors
     rejected_total = len(parse_errors) + result.rejected
 
+    analyzed_count = 0
+    if result.sample_ids:
+        opinions = opinions_by_ids(db, result.sample_ids)
+        analyzed = analyze_batch(db, opinions)
+        analyzed_count = sum(1 for r in analyzed if r.status == "success")
+
     record_audit(
         db,
         actor=user,
@@ -178,6 +192,7 @@ async def import_json(
             "accepted": result.accepted,
             "rejected": rejected_total,
             "duplicate": result.duplicate,
+            "analyzed": analyzed_count,
         },
         ip_address=ip,
     )
@@ -218,6 +233,13 @@ def import_demo(
     csv_result.errors = csv_errors + csv_result.errors
     json_result.errors = json_errors + json_result.errors
 
+    sample_ids = csv_result.sample_ids + json_result.sample_ids
+    analyzed_count = 0
+    if sample_ids:
+        opinions = opinions_by_ids(db, sample_ids)
+        analyzed = analyze_batch(db, opinions)
+        analyzed_count = sum(1 for r in analyzed if r.status == "success")
+
     total = IngestionResult(
         accepted=csv_result.accepted + json_result.accepted,
         rejected=csv_result.rejected + json_result.rejected,
@@ -238,6 +260,7 @@ def import_demo(
             "json_accepted": json_result.accepted,
             "csv_duplicate": csv_result.duplicate,
             "json_duplicate": json_result.duplicate,
+            "analyzed": analyzed_count,
         },
         ip_address=ip,
     )
