@@ -38,6 +38,7 @@
       {% block content %}{% endblock %}
     </section>
   </main>
+  <script>window.__userRole = {{ user.role | tojson }};</script>
   <script src="/static/app.js"></script>
 </body>
 </html>

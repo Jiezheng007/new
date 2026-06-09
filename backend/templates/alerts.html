@@ -1,0 +1,119 @@
+{% extends "_layout.html" %}
+{% block content %}
+  <div class="alerts-page">
+    <section class="panel">
+      <header class="panel-header">
+        <h2>预警筛选</h2>
+        <p class="muted small">系统会在高/严重风险的舆情被分析后自动生成待确认预警。</p>
+      </header>
+      <form id="alertFilter" class="form-grid" autocomplete="off">
+        <label>
+          <span>关键词</span>
+          <input id="al_q" name="q" type="text" maxlength="128" placeholder="在标题 / 正文中搜索">
+        </label>
+        <label>
+          <span>状态</span>
+          <select id="al_status" name="status">
+            <option value="">全部</option>
+            <option value="pending">待确认</option>
+            <option value="confirmed">已确认</option>
+            <option value="ignored">已忽略</option>
+          </select>
+        </label>
+        <label>
+          <span>风险等级</span>
+          <select id="al_level" name="risk_level">
+            <option value="">全部</option>
+            <option value="high">高</option>
+            <option value="severe">严重</option>
+          </select>
+        </label>
+        <label>
+          <span>数据源</span>
+          <select id="al_source" name="source_id">
+            <option value="">全部</option>
+          </select>
+        </label>
+        <label>
+          <span>开始时间</span>
+          <input id="al_start" name="start_at" type="datetime-local">
+        </label>
+        <label>
+          <span>结束时间</span>
+          <input id="al_end" name="end_at" type="datetime-local">
+        </label>
+        <div class="form-actions">
+          <button type="submit" class="primary">查询</button>
+          <button type="button" id="alReset" class="link-button">重置</button>
+          <p id="alStatus" class="status"></p>
+        </div>
+      </form>
+    </section>
+
+    <section class="panel">
+      <header class="panel-header">
+        <h2>预警列表</h2>
+        <p class="muted small" id="alSummary">加载中...</p>
+      </header>
+      <div class="table-wrap">
+        <table class="data-table" id="alTable">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>标题</th>
+              <th>数据源</th>
+              <th>风险等级</th>
+              <th>分数</th>
+              <th>状态</th>
+              <th>触发时间</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="alTbody">
+            <tr><td colspan="8" class="muted">加载中...</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="form-actions" style="margin-top: 0.75rem;">
+        <button type="button" id="alPrev" class="link-button">上一页</button>
+        <span id="alPager" class="muted small"></span>
+        <button type="button" id="alNext" class="link-button">下一页</button>
+      </div>
+    </section>
+  </div>
+
+  <div id="alertDialog" class="dialog hidden" role="dialog" aria-modal="true">
+    <div class="dialog-card" style="width: min(820px, 95vw);">
+      <header>
+        <h3 id="alertDialogTitle">预警详情</h3>
+        <button type="button" class="link-button" id="alertDialogClose">关闭</button>
+      </header>
+      <div id="alertDialogBody" class="muted small" style="white-space: pre-wrap; line-height: 1.6; max-height: 65vh; overflow-y: auto;">加载中...</div>
+      <footer class="form-actions" id="alertDialogFooter" style="margin-top: 1rem; display: none;">
+        <button type="button" id="alertConfirmBtn" class="primary">确认预警</button>
+        <button type="button" id="alertIgnoreBtn" class="link-button" style="color: var(--danger);">忽略预警</button>
+        <p id="alertDialogStatus" class="status"></p>
+      </footer>
+    </div>
+  </div>
+
+  <div id="ignoreDialog" class="dialog hidden" role="dialog" aria-modal="true">
+    <div class="dialog-card" style="width: min(480px, 90vw);">
+      <header>
+        <h3>忽略预警</h3>
+        <button type="button" class="link-button" id="ignoreDialogClose">关闭</button>
+      </header>
+      <div style="margin-bottom: 1rem;">
+        <p class="muted small">请填写忽略原因 (至少 2 个字符),系统会记录到审计日志。</p>
+        <textarea id="ignoreReason" rows="3" maxlength="500" style="width: 100%; padding: 0.55rem 0.7rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.95rem; font-family: inherit;"></textarea>
+      </div>
+      <div class="form-actions">
+        <button type="button" id="ignoreSubmit" class="primary">提交忽略</button>
+        <button type="button" id="ignoreCancel" class="link-button">取消</button>
+        <p id="ignoreStatus" class="status"></p>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/alerts.js"></script>
+{% endblock %}

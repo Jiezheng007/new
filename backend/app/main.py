@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 
-from app.api import auth, protected, users, rules, datasources, opinions, imports
+from app.api import auth, protected, users, rules, datasources, opinions, imports, alerts
 from app.core.config import get_settings
 from app.services.bootstrap import init_db
 from app.web.routes import pages_router, web_router
@@ -25,6 +25,7 @@ def create_app() -> FastAPI:
     app.include_router(datasources.router)
     app.include_router(opinions.router)
     app.include_router(imports.router)
+    app.include_router(alerts.router)
     app.include_router(web_router)
     app.include_router(pages_router)
 

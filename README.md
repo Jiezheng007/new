@@ -3,7 +3,57 @@
 FastAPI + SQLAlchemy + Jinja2 modular monolith implementing the public-opinion
 risk-control MVP. See `PRD.md`, `requirement.md`, and `PRD.issue.md` for the
 full product, architecture, and issue plan; `generated-issues.md` is the
-phased issue list (current scope: Phase 4).
+phased issue list (current scope: Phase 5).
+
+## Phase 5 status — Alert lifecycle
+
+Phase 1 built the authenticated shell; Phase 2 added user & role
+management; Phase 3 layered risk-rule configuration, public-data
+ingestion, and CSV / JSON import; Phase 4 wired the analysis + risk
+scoring pipeline on top. Phase 5 turns the high / severe-risk items
+from Phase 4 into a first-class alert lifecycle that risk-control users
+operate on:
+
+- **`Alert` ORM model** (`app/models/alert.py`): one row per high /
+  severe-risk opinion, unique on `opinion_item_id`. Three states —
+  `pending`, `confirmed`, `ignored` — plus a snapshot of the
+  Phase 4 score explanation so the alert still tells a coherent story
+  if the underlying analysis row is later re-computed.
+- **Auto-creation hook** (`app/services/alerts.py` +
+  `app/services/analysis.py`): `analyze_opinion` calls
+  `ensure_alert_for_analysis` after every successful analysis. A new
+  `pending` row is inserted iff the analysis succeeded, the level is
+  `high` or `severe`, and no alert already exists for that opinion.
+  This means `manual_fetch`, `import/csv`, `import/json`,
+  `import/demo`, `POST /api/opinions/{id}/analyze`, and
+  `POST /api/opinions/analyze-pending` all auto-create alerts through
+  the same funnel — no extra wiring in each call site.
+- **State machine**: confirmed / ignored alerts reject further
+  transitions with HTTP 409. Ignore requires a non-blank reason (≥ 2
+  characters); the reason is required at both the pydantic schema and
+  the service layer so it cannot be bypassed by a direct call.
+- **API** (`/api/alerts`): list (filters: status, level, source,
+  keyword, time range), detail, `POST .../confirm`,
+  `POST .../ignore`, `GET .../summary`. Read access for admin /
+  risk_control / auditor; write access for admin / risk_control only.
+  Handlers and viewers are blocked from every endpoint.
+- **Audit trail**: every state change writes an `AuditLog` row with
+  actor, action (`alert.confirm` / `alert.ignore`), target_id,
+  result, IP address, and a JSON detail (`risk_level`, `risk_score`,
+  `opinion_item_id`, and — on ignore — the reason). Invalid-state
+  attempts also write a `failure` audit row before the 409 response.
+- **Web UI** (`/web/alerts`): server-rendered list page with the same
+  filter form as the opinion list, a status pill for the alert
+  (`pending` / `confirmed` / `ignored`), a detail dialog that shows
+  the original opinion + the Phase 4 score explanation, and confirm
+  / ignore actions. Auditor and handler / viewer sessions see the
+  list + detail in read-only mode; only admin / risk_control see the
+  action buttons.
+- **Re-uses Phase 4 demo data**: a fresh `seed_data.py` + a static
+  demo fetch leaves two `pending` alerts in the DB, ready for
+  confirmation / ignoring in the demo.
+
+Test totals: **171 / 171 green** (141 from Phases 1–4 + 30 new for Phase 5).
 
 ## Phase 4 status — Analysis + risk scoring
 
@@ -93,18 +143,19 @@ backend/
     db/         SQLAlchemy engine, session, Base
     models/     ORM models (User, Role, AuditLog, SensitiveKeyword,
                 SubjectKeyword, RiskThreshold, DataSource, OpinionItem,
-                AnalysisResult)
+                AnalysisResult, Alert)
     schemas/    pydantic request/response models
     services/   bootstrap, audit logging, connectors, ingestion, importers,
                 nlp (provider abstraction + keyword implementation),
-                scoring (rule-based risk score), analysis (orchestration)
+                scoring (rule-based risk score), analysis (orchestration),
+                alerts (auto-create + confirm / ignore lifecycle)
     web/        Jinja2 page routes
     main.py     create_app() entrypoint
   static/       CSS + JS for the Web UI, bundled demo CSV / JSON samples
   templates/    Jinja2 templates (login, layout, workbench, users, rules,
                 datasources, opinions, import, …)
   tests/        pytest suite (auth, web, user_management, rules,
-                datasources, imports, analysis)
+                datasources, imports, analysis, alerts)
   scripts/      dev helpers (seed_data.py)
   requirements.txt
   pytest.ini
@@ -130,10 +181,10 @@ uvicorn app.main:app --reload --port 8000
 Open <http://localhost:8000/login> and sign in with `admin / admin123`.
 After login:
 
-- `admin` can visit `/web/datasources`, `/web/rules`, `/web/users`
-- `risk` can visit `/web/import`, `/web/opinions`
+- `admin` can visit `/web/datasources`, `/web/rules`, `/web/users`, `/web/alerts`
+- `risk` can visit `/web/import`, `/web/opinions`, `/web/alerts`
 - `handler` lands on `/web/tickets` (handler-only nav in Phase 8)
-- `auditor` lands on `/web/audit` (audit log in Phase 11)
+- `auditor` lands on `/web/audit`; can read `/web/alerts` + `/web/opinions` (Phase 11)
 - `viewer` lands on `/web/workbench` only
 
 ## Configuration
@@ -202,6 +253,16 @@ Opinion items (any role with `opinion:read`):
 | POST   | `/api/opinions/{id}/analyze`        | admin / risk_control — re-run NLP + scoring for one item, write audit   |
 | POST   | `/api/opinions/analyze-pending`     | admin / risk_control — re-run for items without a successful analysis   |
 
+Alerts (admin / risk_control / auditor read; admin / risk_control write):
+
+| method | path                                | purpose                                                                 |
+| ------ | ----------------------------------- | ----------------------------------------------------------------------- |
+| GET    | `/api/alerts`                       | list with `status`, `risk_level`, `source_id`, `q`, `start_at`, `end_at`, `limit`, `offset` |
+| GET    | `/api/alerts/summary`               | count by status (`pending` / `confirmed` / `ignored` / `total`)         |
+| GET    | `/api/alerts/{id}`                  | detail of one alert (with nested opinion summary + trigger explanation) |
+| POST   | `/api/alerts/{id}/confirm`          | pending → confirmed; writes audit                                       |
+| POST   | `/api/alerts/{id}/ignore`           | pending → ignored; body `{ "reason": "..." }` (≥ 2 chars); writes audit |
+
 Imports (admin / risk_control):
 
 | method | path                              | purpose                                                                |
@@ -235,7 +296,7 @@ pytest
 The suite provisions an isolated SQLite database per test run, seeds all five
 roles plus a disabled user, the four risk thresholds, the default sensitive +
 subject keyword set, the static demo data source, and the CSV / JSON import
-sinks. The full suite (141 tests) covers:
+sinks. The full suite (171 tests) covers:
 
 - **Auth** (`tests/test_auth.py`): login success / wrong-password / unknown-
   user / disabled-user rejection; logout clears the cookie; `/me` accepts
@@ -294,6 +355,20 @@ sinks. The full suite (141 tests) covers:
   filters `sentiment` / `risk_level` / `analysis_status` work and validate
   their values; the `/web/opinions` page renders the new sentiment /
   level / status columns + 重新分析 button.
+- **Alert lifecycle** (`tests/test_alerts.py`): successful high /
+  severe analyses auto-create `pending` alerts (and only those — low /
+  medium / failed analyses do not); re-analyzing the same opinion does
+  not produce a second alert; threshold change can promote a
+  previously-low opinion to high and the next analysis creates an
+  alert; list / detail / confirm / ignore endpoints with filters and
+  pagination; the ignore reason is required (≥ 2 non-whitespace
+  characters, 422 / 400 boundary cases covered); confirmed and ignored
+  alerts reject further transitions (409); handler, viewer, and
+  auditor are blocked from confirm / ignore; admin and risk_control
+  succeed; every state change writes an `AuditLog` row; the
+  `/api/alerts/summary` count matches the per-status breakdown; the
+  `/web/alerts` page renders for admin / risk_control / auditor and
+  returns 403 for handler / viewer.
 
 ## Demo happy path (no external network needed)
 
@@ -303,7 +378,8 @@ curl -c cookies.txt -X POST http://localhost:8000/api/auth/login \
   -H 'Content-Type: application/json' \
   -d '{"username": "admin", "password": "admin123"}'
 
-# 2. Fetch the built-in static demo (6 items, auto-analyzed)
+# 2. Fetch the built-in static demo (6 items, auto-analyzed,
+#    2 high/severe items auto-create pending alerts)
 curl -b cookies.txt -X POST http://localhost:8000/api/datasources/1/fetch
 
 # 3. Load the bundled CSV + JSON sample data (5 + 4 items, auto-analyzed)
@@ -316,19 +392,29 @@ curl -b cookies.txt 'http://localhost:8000/api/opinions?limit=20'
 curl -b cookies.txt 'http://localhost:8000/api/opinions?risk_level=high'
 curl -b cookies.txt 'http://localhost:8000/api/opinions?risk_level=severe'
 
-# 6. Drill into a single opinion — the response includes the analysis
+# 6. List the auto-created alerts
+curl -b cookies.txt http://localhost:8000/api/alerts?status=pending
+
+# 7. Confirm the first alert
+curl -b cookies.txt -X POST http://localhost:8000/api/alerts/1/confirm
+
+# 8. Ignore the second alert with a reason
+curl -b cookies.txt -X POST http://localhost:8000/api/alerts/2/ignore \
+  -H 'Content-Type: application/json' \
+  -d '{"reason": "已与企业沟通确认为误报"}'
+
+# 9. Drill into a single opinion — the response includes the analysis
 #    section (sentiment, score, level, factors, explanation).
 curl -b cookies.txt http://localhost:8000/api/opinions/3 | python3 -m json.tool
 ```
 
-Phase 4 alone demonstrates the ingestion + auto-analysis + rule-based risk
-scoring + RBAC + UI pipeline. Phase 5 will layer the alert lifecycle
-(pending → confirmed → ignored → ticket) on top of these high-risk items.
+Phases 1–5 together demonstrate the full ingest → analyze → risk →
+alert pipeline. Phase 6 will layer the ticket lifecycle (confirmed
+alert → assigned → completed → archived) on top of the confirmed
+alerts.
 
 ## What's next
 
-`generated-issues.md` lists Phases 5–12. The next slice is **Phase 5**:
-automatic pending-alert creation on high / severe risk, plus the
-confirm / ignore / convert-to-ticket workflow for risk-control users. The
-`AnalysisResult.level` + `score` + `explanation` populated by Phase 4
-are the trigger source for that next step.
+`generated-issues.md` lists Phases 6–12. The next slice is **Phase 6
+(Issue 8)**: the ticket lifecycle (confirmed alert → assigned →
+completed → archived) on top of the confirmed alerts from Phase 5.

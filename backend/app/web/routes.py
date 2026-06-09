@@ -78,7 +78,7 @@ _PAGE_KEY_TO_PATH = {
     "rules": "rules.html",
     "import": "import.html",
     "opinions": "opinions.html",
-    "alerts": "placeholder.html",
+    "alerts": "alerts.html",
     "tickets": "placeholder.html",
     "reports": "placeholder.html",
     "users": "users.html",
@@ -110,7 +110,12 @@ def render_page(page_key: str, request: Request, db: Session = Depends(get_db)) 
         "active_key": page_key,
         "page_title": _page_title(page_key),
     }
-    return templates.TemplateResponse(request, template_name, context)
+    response = templates.TemplateResponse(request, template_name, context)
+    # Expose the current role to the page-level JS so per-page scripts
+    # (e.g. alerts.js) can hide write actions for read-only roles without
+    # an extra roundtrip to /api/auth/me.
+    response.headers["X-User-Role"] = user.role.code
+    return response
 
 
 def _page_title(key: str) -> str:

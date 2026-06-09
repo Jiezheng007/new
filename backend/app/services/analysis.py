@@ -129,6 +129,14 @@ def analyze_opinion(db: Session, opinion: OpinionItem) -> AnalysisResult:
     row.error_message = None
     row.analyzed_at = _utcnow()
     db.flush()
+    # Phase 5 / Issue 7: a successful high/severe analysis auto-creates a
+    # pending alert. Hooked here so every code path that goes through
+    # analyze_opinion (manual fetch, CSV / JSON import, retry, pending
+    # batch) gets the same behavior. ensure_alert_for_analysis is a
+    # no-op for low/medium levels and for re-analyses of an opinion that
+    # already has an alert.
+    from app.services.alerts import ensure_alert_for_analysis
+    ensure_alert_for_analysis(db, row)
     return row
 
 
