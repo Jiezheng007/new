@@ -77,7 +77,10 @@
   const loadAll = async () => {
     const res = await csrfSafeFetch("/api/datasources");
     if (res.status === 401) { window.location.href = "/login"; return; }
-    if (res.status === 403) { alert("当前角色无权管理数据源"); return; }
+    if (res.status === 403) {
+      await window.alertModal({ title: "无权操作", message: "当前角色无权管理数据源" });
+      return;
+    }
     state.sources = await res.json();
     renderTable();
   };
@@ -112,28 +115,47 @@
   };
 
   const triggerFetch = async (s) => {
-    if (!confirm(`确定要触发数据源「${s.name}」的抓取吗?`)) return;
+    if (!(await window.confirmModal({
+      title: "触发抓取",
+      message: `确定要触发数据源「${s.name}」的抓取吗?`,
+      confirmText: "开始抓取",
+    }))) return;
     const res = await csrfSafeFetch(`/api/datasources/${s.id}/fetch`, { method: "POST" });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) {
-      alert((body && body.detail) || "抓取失败");
+      await window.alertModal({
+        title: "抓取失败",
+        message: (body && body.detail) || "抓取失败",
+        danger: true,
+      });
       await loadAll();
       return;
     }
-    alert(`抓取完成:${body.message}`);
+    await window.alertModal({
+      title: "抓取完成",
+      message: `抓取完成:${body.message}`,
+    });
     await loadAll();
   };
 
   const toggleSource = async (s) => {
     const verb = s.is_enabled ? "停用" : "启用";
-    if (!confirm(`确定要${verb}数据源「${s.name}」吗?`)) return;
+    if (!(await window.confirmModal({
+      title: `${verb}数据源`,
+      message: `确定要${verb}数据源「${s.name}」吗?`,
+      confirmText: verb,
+    }))) return;
     const res = await csrfSafeFetch(`/api/datasources/${s.id}`, {
       method: "PATCH",
       body: JSON.stringify({ is_enabled: !s.is_enabled }),
     });
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
-      alert((body && body.detail) || `${verb}失败`);
+      await window.alertModal({
+        title: `${verb}失败`,
+        message: (body && body.detail) || `${verb}失败`,
+        danger: true,
+      });
       return;
     }
     await loadAll();
