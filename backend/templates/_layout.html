@@ -6,12 +6,14 @@
   <title>{{ page_title }} · 舆情风控信号台</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="/static/app.css?v=blue-console-20260610-4">
+  <link rel="stylesheet" href="/static/app.css?v=blue-console-v2">
 </head>
 <body class="app-body">
   <aside class="sidebar">
     <div class="brand">
-      <span class="brand-mark" aria-hidden="true">舆</span>
+      <div class="brand-mark" aria-hidden="true">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+      </div>
       <div>
         <strong>风控信号台</strong>
         <p class="muted small">Yuqing · RC Terminal</p>
@@ -19,7 +21,10 @@
     </div>
     <nav class="nav" aria-label="主导航">
       {% for item in nav_items %}
-        <a href="{{ item.href }}" class="nav-item {% if item.key == active_key %}active{% endif %}">{{ item.label }}</a>
+        <a href="{{ item.href }}" class="nav-item {% if item.key == active_key %}active{% endif %}" data-key="{{ item.key }}">
+          <span class="nav-icon" aria-hidden="true"></span>
+          {{ item.label }}
+        </a>
       {% endfor %}
     </nav>
     <div class="sidebar-footer">
@@ -35,8 +40,11 @@
       </div>
       <div class="user-info">
         <span class="topbar-clock" id="topbarClock" aria-live="off"></span>
-        <span>{{ user.full_name or user.username }}</span>
-        <span class="role-pill">{{ user.role_name }}</span>
+        <div class="user-pill">
+          <span class="user-avatar"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg></span>
+          <span>{{ user.full_name or user.username }}</span>
+        </div>
+        <span class="role-pill"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg> {{ user.role_name }}</span>
       </div>
     </header>
     <section class="content">

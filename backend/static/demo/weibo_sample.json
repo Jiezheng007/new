@@ -1,0 +1,28 @@
+{
+  "statuses": [
+    {
+      "idstr": "weibo-demo-001",
+      "text_raw": "网友爆料某品牌产品存在严重质量问题,监管部门已介入调查。",
+      "created_at": "2026-06-08T10:00:00+00:00",
+      "user": {
+        "id": "1001",
+        "screen_name": "微博用户A"
+      },
+      "reposts_count": 12,
+      "comments_count": 8,
+      "attitudes_count": 99
+    },
+    {
+      "idstr": "weibo-demo-002",
+      "text_raw": "消费者集中投诉售后响应缓慢,希望企业尽快公开整改方案。",
+      "created_at": "2026-06-08T11:00:00+00:00",
+      "user": {
+        "id": "1002",
+        "screen_name": "微博用户B"
+      },
+      "reposts_count": 4,
+      "comments_count": 16,
+      "attitudes_count": 31
+    }
+  ]
+}

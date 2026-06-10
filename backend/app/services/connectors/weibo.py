@@ -31,8 +31,17 @@ class WeiboConnector(BaseConnector):
                 resp = client.get(source.url)
                 resp.raise_for_status()
                 payload = resp.json()
-        except (httpx.HTTPError, ValueError) as e:
-            raise ConnectorError(f"Failed to fetch Weibo feed '{source.url}': {e}") from e
+        except httpx.HTTPError as e:
+            raise ConnectorError(
+                f"Failed to fetch Weibo JSON feed '{source.url}': {e}. "
+                "Configure a URL that returns Weibo-like JSON; public weibo.com pages usually require login "
+                "and are not supported by this connector."
+            ) from e
+        except ValueError as e:
+            raise ConnectorError(
+                f"Weibo feed '{source.url}' did not return valid JSON. "
+                "Configure a JSON endpoint, not a public weibo.com HTML page."
+            ) from e
 
         items = _extract_items(payload)
         return [_coerce(item) for item in items]

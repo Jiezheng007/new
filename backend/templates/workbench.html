@@ -37,7 +37,9 @@
         <h2 id="dashTrendHeading">近七日舆情趋势</h2>
         <p>按舆情发布时间分桶,缺失日期补 0。叠加负面与高/严重风险数量。</p>
       </header>
-      <div id="dashTrendBars" class="trend-bars" role="list" aria-label="近七日舆情趋势柱状图"></div>
+      <div id="dashTrendBars" class="trend-bars" role="list" aria-label="近七日舆情趋势柱状图">
+        <div class="skeleton-box" style="height: 100%; width: 100%; min-height: 120px; border-radius: var(--radius-lg);"></div>
+      </div>
       <div class="trend-legend">
         <span class="legend-item"><span class="legend-swatch total"></span>总数</span>
         <span class="legend-item"><span class="legend-swatch negative"></span>负面</span>
@@ -63,7 +65,9 @@
             </tr>
           </thead>
           <tbody id="dashLatestAlerts">
-            <tr><td colspan="5" class="muted">加载中...</td></tr>
+            <tr><td colspan="5"><div class="skeleton-box" style="height: 24px; width: 100%;"></div></td></tr>
+            <tr><td colspan="5"><div class="skeleton-box" style="height: 24px; width: 95%;"></div></td></tr>
+            <tr><td colspan="5"><div class="skeleton-box" style="height: 24px; width: 98%;"></div></td></tr>
           </tbody>
         </table>
       </div>
