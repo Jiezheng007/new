@@ -117,8 +117,11 @@ def app(test_db_url, monkeypatch):
 
 @pytest.fixture()
 def client(app) -> Generator[TestClient, None, None]:
-    with TestClient(app) as c:
+    c = TestClient(app)
+    try:
         yield c
+    finally:
+        c.close()
 
 
 def login_as(client: TestClient, username: str, password: str) -> None:
