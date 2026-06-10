@@ -3,7 +3,60 @@
 FastAPI + SQLAlchemy + Jinja2 modular monolith implementing the public-opinion
 risk-control MVP. See `PRD.md`, `requirement.md`, and `PRD.issue.md` for the
 full product, architecture, and issue plan; `generated-issues.md` is the
-phased issue list (current scope: Phase 9 — Audit log review).
+phased issue list (current scope: Phase 10 — Course-demo happy path).
+
+## Phase 10 status — Course-demo happy path
+
+Phases 1–9 built every piece the PRD calls for (auth shell, user
+management, rules, ingestion, NLP + scoring, alerts, tickets,
+dashboard, reports, audit). Phase 10 ties the whole loop together
+and proves the architecture decisions through working behaviour:
+
+- **Bundled demo data refresh** (`backend/static/demo/sample_opinions.{csv,json}`):
+  the CSV was rewritten to use Chinese punctuation inside the
+  content field so the CSV parser no longer splits long sentences
+  on the row delimiter. `csv-004` now carries a clearly negative,
+  sensitive-keyword-rich payload (`某公司被通报严重违规`,
+  `重大安全隐患`, `数据泄露事故`, `查处`), so the import-only path
+  also produces a high/severe-risk alert without needing the
+  built-in `static_demo` source.
+- **End-to-end happy-path test**
+  (`backend/tests/test_e2e_happy_path.py`): one test walks
+  login → static-demo fetch → bundled CSV/JSON import → auto-analysis
+  → alert confirm/ignore → ticket convert → handler completes →
+  risk_control archives → report queue → background worker → xlsx
+  download → admin dashboard → auditor reviews the full audit
+  trail. The test asserts at every state transition and verifies
+  that every expected `auth.login` / `datasource.fetch` /
+  `import.demo` / `alert.*` / `ticket.*` / `report.*` audit row
+  is present.
+- **Scripted demo verifier** (`backend/scripts/demo_e2e.py`): a
+  CLI version of the same loop, but it talks to a real running
+  `uvicorn` instance over HTTP instead of the in-process
+  `TestClient`. Useful when demoing to a live audience and when
+  validating that the report-center `BackgroundTasks` worker
+  actually completes after the request session is torn down.
+  Each step prints a single coloured line so the demo terminal is
+  easy to follow:
+
+      python scripts/demo_e2e.py --base-url http://localhost:8000
+
+- **Architecture in the loop**: the happy path exercises every
+  architecture decision the PRD lists:
+  - *event-driven*: confirming an alert -> creating a ticket ->
+    completing a ticket -> queuing a report each writes an audit
+    event picked up by the auditor view at the end.
+  - *pipeline-filter*: `static_demo` + CSV + JSON all flow through
+    the shared `ingest_records` → cleaner → dedup → `analyze_batch`
+    funnel; the same code path produces the same opinion-item
+    shape regardless of source.
+  - *data-centred / SQLAlchemy*: every state transition lands in
+    the database before the response returns, and the auditor
+    view at the end reads it back through the same ORM the writers
+    used.
+
+Test totals: **290 / 290 green** (289 from Phases 1–9 + 1 new
+end-to-end test for Phase 10).
 
 ## Phase 9 status — Audit log review
 
@@ -358,8 +411,9 @@ backend/
                 datasources, opinions, import, …)
   tests/        pytest suite (auth, web, user_management, rules,
                 datasources, imports, analysis, alerts, tickets,
-                reports)
-  scripts/      dev helpers (seed_data.py)
+                reports, audit, e2e_happy_path)
+  scripts/      dev helpers (seed_data.py, demo_e2e.py — scripted
+                happy-path verifier against a live uvicorn server)
   requirements.txt
   pytest.ini
 ```
@@ -528,7 +582,7 @@ pytest
 The suite provisions an isolated SQLite database per test run, seeds all five
 roles plus a disabled user, the four risk thresholds, the default sensitive +
 subject keyword set, the static demo data source, and the CSV / JSON import
-sinks. The full suite (262 tests) covers:
+sinks. The full suite (290 tests) covers:
 
 - **Auth** (`tests/test_auth.py`): login success / wrong-password / unknown-
   user / disabled-user rejection; logout clears the cookie; `/me` accepts
@@ -628,6 +682,30 @@ sinks. The full suite (262 tests) covers:
   file paths; every download writes a `report.download` audit row
   (success or failure); the `/web/reports` page renders for admin /
   risk_control / auditor / viewer and returns 403 for handler.
+- **Audit log** (`tests/test_audit.py`): every important state
+  change (login / logout, user, role, data source, rule, alert,
+  ticket, report) writes an `AuditLog` row with the right actor,
+  action, target, result, IP, and JSON detail; the auditor
+  endpoint supports filters (action, target_type, target_id,
+  actor, result, time range, free-text `q`) and `facets` returns
+  the distinct action / target_type / actor / result values; only
+  admin / auditor can read; every other role gets 403; the router
+  is read-only by contract (no POST / PUT / PATCH / DELETE); the
+  `/web/audit` page renders for admin / auditor and returns 403
+  for risk_control / handler / viewer.
+- **End-to-end happy path** (`tests/test_e2e_happy_path.py`):
+  one test walks the full Phase 10 course demo against the
+  in-process `TestClient`: admin login → static-demo fetch
+  (asserts 6 accepted) → bundled CSV/JSON import (asserts 9
+  accepted) → risk_control confirms one alert and ignores
+  another → 409 on re-confirm → ticket from-alert with
+  `assignee_id` → handler completes → 409 on re-complete →
+  risk_control archives → high-risk report queued → worker
+  invoked deterministically → task lands in `completed` →
+  download streams a 3-sheet `.xlsx` → admin dashboard reflects
+  the demo state → auditor sees the full audit trail with every
+  important action present, and a filtered list still returns
+  rows for the queried action.
 
 ## Demo happy path (no external network needed)
 
@@ -698,12 +776,30 @@ curl -b cookies.txt -OJ http://localhost:8000/api/reports/1/download
 ```
 
 Phases 1–8 together demonstrate the full ingest → analyze → risk →
-alert → ticket → report pipeline. Phase 9 will layer the
-permissions/role-assignment UX on top of the Phase 2 user model.
+alert → ticket → report pipeline. The same loop is also available as
+a single CLI verifier that talks to a live `uvicorn` server over
+HTTP, so a demo audience can watch every step land on a real
+background worker:
+
+```bash
+# In one terminal — leave the dev server running.
+uvicorn app.main:app --reload --port 8000
+
+# In another — walk the whole path with coloured per-step output.
+python scripts/demo_e2e.py --base-url http://localhost:8000
+```
+
+The script is a sibling of `tests/test_e2e_happy_path.py` — the
+test uses the in-process `TestClient` and runs the report worker
+directly for determinism; the script polls `BackgroundTasks` the
+way a real user would, and exits non-zero on any failure.
 
 ## What's next
 
-`generated-issues.md` lists Phases 9–12. The next slice is **Phase 9
-(Issue 11)**: the permissions and role-assignment UX, where admin
-manages the per-user permission set and per-role nav items directly
-from `/web/users` instead of editing the seed data.
+Phases 1–10 of `generated-issues.md` are now landed. The course demo
+covers the full ingest → analyze → risk-score → alert → ticket →
+report → audit loop, and a single test (`tests/test_e2e_happy_path.py`)
+plus a single CLI (`scripts/demo_e2e.py`) prove it end-to-end against
+both the in-process `TestClient` and a live `uvicorn` server. Any
+follow-up work should be driven by new issues in
+`generated-issues.md` rather than by extending the phase list.
