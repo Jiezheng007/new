@@ -41,11 +41,13 @@ def app(test_db_url, monkeypatch):
     get_settings.cache_clear()
 
     from app.db import session as session_module
+    from app.services import bootstrap as bootstrap_module
 
     test_engine = create_engine(test_db_url, connect_args={"check_same_thread": False})
     TestSession = sessionmaker(bind=test_engine, autoflush=False, autocommit=False)
     session_module.engine = test_engine
     session_module.SessionLocal = TestSession
+    bootstrap_module.engine = test_engine
     Base.metadata.create_all(bind=test_engine)
 
     with TestSession() as db:

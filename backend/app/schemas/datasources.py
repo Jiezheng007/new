@@ -8,8 +8,9 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.services.connectors import (
     ALL_SOURCE_TYPES,
+    SOURCE_TYPE_JSON_URL,
     SOURCE_TYPE_RSS,
-    SOURCE_TYPE_STATIC_DEMO,
+    SOURCE_TYPE_WEIBO,
 )
 
 
@@ -42,8 +43,9 @@ class DataSourceCreate(BaseModel):
 
     @model_validator(mode="after")
     def _url_required_for_network(self) -> "DataSourceCreate":
-        if self.source_type in (SOURCE_TYPE_RSS, "json_url") and not (self.url or "").strip():
-            raise ValueError("url is required for RSS / json_url data sources")
+        network_types = (SOURCE_TYPE_RSS, SOURCE_TYPE_JSON_URL, SOURCE_TYPE_WEIBO)
+        if self.source_type in network_types and not (self.url or "").strip():
+            raise ValueError("url is required for RSS / json_url / weibo data sources")
         return self
 
 

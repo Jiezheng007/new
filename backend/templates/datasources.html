@@ -4,7 +4,7 @@
     <section class="panel">
       <header class="panel-header">
         <h2>新增数据源</h2>
-        <p class="muted small">支持 RSS、JSON URL、内置静态演示等类型。系统管理员可新增、修改、抓取与停用。</p>
+        <p class="muted small">支持 RSS、JSON URL、微博、内置静态演示等类型。系统管理员可新增、修改、抓取与停用。</p>
       </header>
       <form id="dsCreateForm" class="form-grid" autocomplete="off">
         <label>
@@ -20,6 +20,7 @@
           <select id="ds_source_type" name="source_type" required>
             <option value="rss">RSS / Atom</option>
             <option value="json_url">JSON URL</option>
+            <option value="weibo">微博</option>
             <option value="static_demo">内置演示</option>
           </select>
         </label>
@@ -28,7 +29,7 @@
           <input id="ds_weight" name="weight" type="number" min="0" max="10" step="0.1" value="1.0">
         </label>
         <label class="full">
-          <span>URL (rss / json_url 必填)</span>
+          <span>URL (rss / json_url / weibo 必填)</span>
           <input id="ds_url" name="url" type="text" maxlength="512" placeholder="https://...">
         </label>
         <label class="full">

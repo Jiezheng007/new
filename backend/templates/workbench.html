@@ -2,28 +2,29 @@
 {% block content %}
   <div class="dashboard">
     <section class="dashboard-summary" aria-labelledby="dashSummaryHeading">
-      <h2 id="dashSummaryHeading" class="section-title">实时风险概览</h2>
-      <p class="muted small">基于数据库中的舆情、预警、工单与近七日趋势汇总,数据每 30 秒自动刷新。</p>
+      <span class="eyebrow">Front Page · 实时风险简报</span>
+      <h2 id="dashSummaryHeading" class="section-title">风控信号 · <em style="font-style: italic; font-variation-settings: 'opsz' 144, 'SOFT' 100, 'WONK' 1; color: var(--signal);">每分钟更新</em></h2>
+      <p>基于数据库中的舆情、预警、工单与近七日趋势汇总。本页每 30 秒自动刷新,亦可切换标签页后自动重新同步。</p>
       <p id="dashStatus" class="status" role="status" aria-live="polite"></p>
 
       <div class="metric-grid">
-        <article class="metric-card" data-card="opinion">
+        <article class="metric-card" data-card="opinion" data-deck="01 · 舆情">
           <h3>舆情总数</h3>
           <p class="metric-value" data-field="opinion_total">-</p>
           <p class="metric-sub" data-field="opinion_analyzed_total"></p>
         </article>
-        <article class="metric-card" data-card="negative">
+        <article class="metric-card" data-card="negative" data-deck="02 · 负面">
           <h3>负面舆情占比</h3>
           <p class="metric-value" data-field="opinion_negative_total">-</p>
           <p class="metric-sub" data-field="opinion_negative_ratio"></p>
         </article>
-        <article class="metric-card" data-card="alerts">
-          <h3>高/严重预警数</h3>
+        <article class="metric-card" data-card="alerts" data-deck="03 · 预警">
+          <h3>高 / 严重预警</h3>
           <p class="metric-value" data-field="alerts_high_or_severe_total">-</p>
           <p class="metric-sub" data-field="alerts_pending"></p>
         </article>
-        <article class="metric-card" data-card="tickets">
-          <h3>待处理工单数</h3>
+        <article class="metric-card" data-card="tickets" data-deck="04 · 工单">
+          <h3>待处理工单</h3>
           <p class="metric-value" data-field="tickets_in_progress">-</p>
           <p class="metric-sub" data-field="tickets_unassigned"></p>
         </article>
@@ -32,8 +33,9 @@
 
     <section class="dashboard-trend panel" aria-labelledby="dashTrendHeading">
       <header class="panel-header">
+        <span class="eyebrow">Chart · 7-Day Signal</span>
         <h2 id="dashTrendHeading">近七日舆情趋势</h2>
-        <p class="muted small">按舆情发布时间分桶,缺失日期补 0。包含负面舆情与高/严重风险数量。</p>
+        <p>按舆情发布时间分桶,缺失日期补 0。叠加负面与高/严重风险数量。</p>
       </header>
       <div id="dashTrendBars" class="trend-bars" role="list" aria-label="近七日舆情趋势柱状图"></div>
       <div class="trend-legend">
@@ -45,8 +47,9 @@
 
     <section class="dashboard-alerts panel" aria-labelledby="dashAlertsHeading">
       <header class="panel-header">
+        <span class="eyebrow">Wire · Latest Alerts</span>
         <h2 id="dashAlertsHeading">最新预警</h2>
-        <p class="muted small">按时间倒序展示前 5 条预警的标题、来源、风险等级与当前状态。</p>
+        <p>按时间倒序展示前 5 条预警的标题、来源、风险等级与当前状态。</p>
       </header>
       <div class="table-wrap">
         <table class="data-table">

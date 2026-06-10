@@ -3,33 +3,38 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{{ page_title }} - 舆情风控管理系统</title>
-  <link rel="stylesheet" href="/static/app.css">
+  <title>{{ page_title }} · 舆情风控信号台</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="/static/app.css?v=blue-console-20260610-4">
 </head>
 <body class="app-body">
   <aside class="sidebar">
     <div class="brand">
-      <span class="brand-mark">舆</span>
+      <span class="brand-mark" aria-hidden="true">舆</span>
       <div>
-        <strong>舆情风控</strong>
-        <p class="muted small">Risk Control MVP</p>
+        <strong>风控信号台</strong>
+        <p class="muted small">Yuqing · RC Terminal</p>
       </div>
     </div>
-    <nav class="nav">
+    <nav class="nav" aria-label="主导航">
       {% for item in nav_items %}
         <a href="{{ item.href }}" class="nav-item {% if item.key == active_key %}active{% endif %}">{{ item.label }}</a>
       {% endfor %}
     </nav>
     <div class="sidebar-footer">
-      <p class="muted small">当前角色</p>
+      <p class="muted small">当前席位</p>
       <p><strong>{{ user.role_name }}</strong></p>
-      <button id="logoutBtn" class="link-button">退出登录</button>
+      <button id="logoutBtn" class="link-button">⟵ 退出登录</button>
     </div>
   </aside>
   <main class="main">
-    <header class="topbar">
-      <h1>{{ page_title }}</h1>
+    <header class="topbar" data-edition="DAILY EDITION">
+      <div>
+        <h1>{{ page_title }}</h1>
+      </div>
       <div class="user-info">
+        <span class="topbar-clock" id="topbarClock" aria-live="off"></span>
         <span>{{ user.full_name or user.username }}</span>
         <span class="role-pill">{{ user.role_name }}</span>
       </div>

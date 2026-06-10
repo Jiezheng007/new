@@ -92,6 +92,7 @@
 ```bash
 cd backend
 python3 -m venv .venv
+
 source .venv/bin/activate
 pip install -r requirements.txt
 pip install feedparser        # 可选:仅在需要真实 RSS 拉取时安装
@@ -272,50 +273,4 @@ backend/
 
 ---
 
-## 九、测试
 
-```bash
-cd backend
-source .venv/bin/activate
-pytest
-```
-
-当前 290 个用例全部通过,覆盖:
-
-| 测试模块 | 验证点 |
-|---|---|
-| `test_auth` | 登录成功 / 错误密码 / 禁用账号 / 登出 / `/me` / 密码加盐 |
-| `test_web` | 登录页渲染、角色感知导航、跨角色 403 |
-| `test_user_management` | 用户 CRUD / 启停 / 密码重置 / 角色分配 / 审计写入 |
-| `test_rules` | 敏感词 / 主体词 / 阈值维护 + 审计 |
-| `test_datasources` | CRUD / 手动拉取 / 去重 / 错误源 502 |
-| `test_imports` | CSV / JSON / 演示包导入 + 字段校验 + 去重 |
-| `test_analysis` | NLP 情感 + 风险评分因子计算 + 重新分析 |
-| `test_alerts` | 预警自动创建 / 状态机 / 忽略原因必填 |
-| `test_tickets` | 转工单 / 派发 / 开始 / 完成 / 归档状态机 |
-| `test_reports` | 异步任务、状态机、`.xlsx` 三页结构、下载 |
-| `test_audit` | 关键操作审计写入、多维过滤、只读契约 |
-| `test_dashboard` | 工作台聚合指标 |
-| `test_e2e_happy_path` | 端到端:登录 → 拉取 → 导入 → 确认 → 工单 → 报告 → 审计 |
-
----
-
-## 十、相关文档
-
-- [`PRD.md`](./PRD.md) — 完整产品需求与验收标准
-- [`requirement.md`](./requirement.md) — 架构设计决策与质量属性
-- [`PRD.issue.md`](./PRD.issue.md) / [`generated-issues.md`](./generated-issues.md) — 12 个 issue 的实现规划
-- [`auto_run.sh`](./auto_run.sh) — 从 issue 列表自动抽取并执行 phase 的辅助脚本
-
----
-
-## 十一、可选扩展
-
-以下能力在 PRD 中列为选做,当前未实现,可在后续 issue 中追加:
-
-- PDF 报告导出(目前只导出 `.xlsx`)
-- 相似文本归并 / 简单事件聚类
-- Elasticsearch / OpenSearch 全文检索
-- Celery + Redis 任务队列(目前用 FastAPI `BackgroundTasks`)
-- 更多数据源适配器(微博、知乎、抖音、投诉平台等)
-- 报告模板编辑器

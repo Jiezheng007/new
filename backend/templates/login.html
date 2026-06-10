@@ -1,33 +1,113 @@
 <!doctype html>
 <html lang="zh-CN">
+
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>登录 - 舆情风控管理系统</title>
-  <link rel="stylesheet" href="/static/app.css">
+  <title>登录 · 舆情风控信号台</title>
+  <link rel="stylesheet" href="/static/app.css?v=blue-console-20260610-5">
 </head>
+
 <body class="login-body">
-  <main class="login-card">
-    <header class="login-header">
-      <h1>舆情风控管理系统</h1>
-      <p class="muted">Yuqing Risk Control MVP</p>
+  <div class="signal-shell" aria-hidden="true">
+    <span class="radar-ring ring-1"></span>
+    <span class="radar-ring ring-2"></span>
+    <span class="radar-ring ring-3"></span>
+    <span class="signal-beam beam-1"></span>
+    <span class="signal-beam beam-2"></span>
+    <span class="signal-beam beam-3"></span>
+  </div>
+
+  <section class="login-cover">
+    <header class="login-mast">
+      <div class="login-brand">
+        <span class="login-shield" aria-hidden="true"></span>
+        <div>
+          <strong>风控信号台</strong>
+          <span>Risk Control Sector</span>
+        </div>
+      </div>
+      <span class="on-air"><span></span>ON-AIR</span>
     </header>
-    <form id="loginForm" class="login-form" autocomplete="off">
-      <label>
-        <span>用户名</span>
-        <input id="username" name="username" type="text" required autofocus value="{{ username or '' }}">
-      </label>
-      <label>
-        <span>密码</span>
-        <input id="password" name="password" type="password" required>
-      </label>
-      <button type="submit">登录</button>
-      <p id="loginError" class="error {% if not error %}hidden{% endif %}">{{ error or '' }}</p>
-    </form>
-    <footer class="login-footer">
-      <p class="muted">默认账号: <code>admin / admin123</code></p>
+
+    <div class="login-display">
+      <span class="kicker">风控信号台 · Yuqing Risk Control SECTOR / SIGNAL</span>
+      <span class="kicker strong">ON-AIR Edition · 风险情报 · 实时监测</span>
+      <h2 class="headline">
+        从噪声中识别<br>
+        <em>每一次预警</em>
+      </h2>
+      <span class="headline-line"></span>
+      <p class="sub">舆情接入 · 风险评分 · 预警协同 · 工单处置 · 报告审计 —— 将分散的网络信号汇聚成可追溯的决策。</p>
+    </div>
+
+    <footer class="login-meta">
+      <div>
+        <span class="metric-icon bars" aria-hidden="true"></span>
+        <span>Pipeline</span>
+        <strong>05 阶段</strong>
+      </div>
+      <div>
+        <span class="metric-icon users" aria-hidden="true"></span>
+        <span>Roles</span>
+        <strong>05 类</strong>
+      </div>
+      <div>
+        <span class="metric-icon cube" aria-hidden="true"></span>
+        <span>Modules</span>
+        <strong>10 项</strong>
+      </div>
     </footer>
-  </main>
+  </section>
+
+  <section class="login-stage">
+    <main class="login-card" role="main">
+      <span class="card-badge" aria-hidden="true"></span>
+      <header class="login-header">
+        <span class="eyebrow">Sign-In · 信号入口</span>
+        <h1>登入终端</h1>
+        <p class="login-sub muted">使用您的工号与口令进入信号台。</p>
+      </header>
+      <form id="loginForm" class="login-form" autocomplete="off">
+        <label>
+          <span>用户名</span>
+          <span class="input-shell operator">
+            <input id="username" name="username" type="text" required autofocus value="{{ username or '' }}"
+              placeholder="请输入账号">
+          </span>
+        </label>
+        <label>
+          <span>密码</span>
+          <span class="input-shell cipher">
+            <input id="password" name="password" type="password" required placeholder="请输入密码">
+          </span>
+        </label>
+        <div class="login-options">
+          <label class="remember">
+            <input type="checkbox" checked>
+            <span>记住我</span>
+          </label>
+          <a href="#" aria-label="忘记口令">忘记口令?</a>
+        </div>
+        <button type="submit">进入终端 <span>→</span></button>
+        <p id="loginError" class="error {% if not error %}hidden{% endif %}">{{ error or '' }}</p>
+      </form>
+      <footer class="login-footer">
+        <span>DEMO 凭证</span>
+        <code>admin</code>
+        <span>/</span>
+        <code>admin123</code>
+      </footer>
+    </main>
+  </section>
+
+  <footer class="login-bottom" aria-hidden="true">
+    <span class="mini-shield"></span>
+    <span>Yuqing Risk Control SECTOR</span>
+    <span>·</span>
+    <span>风险情报 · 实时监测 · 智能预警 · 闭环管理</span>
+  </footer>
   <script src="/static/login.js"></script>
 </body>
+
 </html>

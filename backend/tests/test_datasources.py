@@ -100,6 +100,33 @@ def test_create_datasource_rejects_missing_url_for_rss(client):
     assert res.status_code == 422
 
 
+def test_create_weibo_datasource_as_admin(client):
+    client.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
+    res = client.post(
+        "/api/datasources",
+        json={
+            "code": "weibo_demo",
+            "name": "微博演示",
+            "source_type": "weibo",
+            "url": "https://example.com/weibo.json",
+            "weight": 2.0,
+        },
+    )
+    assert res.status_code == 201, res.text
+    body = res.json()
+    assert body["code"] == "weibo_demo"
+    assert body["source_type"] == "weibo"
+
+
+def test_create_weibo_datasource_rejects_missing_url(client):
+    client.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
+    res = client.post(
+        "/api/datasources",
+        json={"code": "weibo_nourl", "name": "微博无地址", "source_type": "weibo"},
+    )
+    assert res.status_code == 422
+
+
 def test_create_datasource_blocks_non_admin(client):
     client.post("/api/auth/login", json={"username": "risk", "password": "risk123"})
     res = client.post(
@@ -242,6 +269,98 @@ def test_rss_connector_without_feedparser_falls_back(monkeypatch, client):
     res = client.post(f"/api/datasources/{target_id}/fetch")
     assert res.status_code == 502
     assert "feedparser" in res.json()["detail"]
+
+
+def test_manual_fetch_weibo_json_persists_and_dedupes(monkeypatch, client):
+    from app.services.connectors import weibo as weibo_mod
+
+    payload = {
+        "statuses": [
+            {
+                "idstr": "501",
+                "text_raw": "网友爆料某品牌存在严重质量问题,监管部门已介入。",
+                "created_at": "2026-06-08T10:00:00+00:00",
+                "user": {"id": "1001", "screen_name": "微博用户A"},
+                "reposts_count": 12,
+                "comments_count": 8,
+                "attitudes_count": 99,
+            },
+            {
+                "mblog": {
+                    "id": "502",
+                    "text": "<span>消费者投诉售后响应缓慢</span>",
+                    "created_at": "Mon, 08 Jun 2026 11:00:00 GMT",
+                    "user": {"idstr": "1002", "screen_name": "微博用户B"},
+                }
+            },
+        ]
+    }
+
+    class FakeResponse:
+        content = b""
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return payload
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+        def get(self, url):
+            assert url == "https://example.com/weibo.json"
+            return FakeResponse()
+
+    monkeypatch.setattr(weibo_mod.httpx, "Client", FakeClient)
+
+    client.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
+    create = client.post(
+        "/api/datasources",
+        json={
+            "code": "weibo_fetch",
+            "name": "微博抓取",
+            "source_type": "weibo",
+            "url": "https://example.com/weibo.json",
+        },
+    )
+    assert create.status_code == 201, create.text
+    source_id = create.json()["id"]
+
+    first = client.post(f"/api/datasources/{source_id}/fetch")
+    assert first.status_code == 200, first.text
+    assert first.json()["accepted"] == 2
+
+    db = Session(_engine())
+    try:
+        items = (
+            db.query(OpinionItem)
+            .filter(OpinionItem.source_id == source_id)
+            .order_by(OpinionItem.id)
+            .all()
+        )
+        assert len(items) == 2
+        assert items[0].external_id == "501"
+        assert items[0].author == "微博用户A"
+        assert items[0].source_type == "weibo"
+        assert "严重质量问题" in items[0].content
+        assert "reposts_count" in items[0].raw_payload
+        assert items[1].title == "消费者投诉售后响应缓慢"
+    finally:
+        db.close()
+
+    second = client.post(f"/api/datasources/{source_id}/fetch")
+    assert second.status_code == 200, second.text
+    body = second.json()
+    assert body["accepted"] == 0
+    assert body["duplicate"] == 2
 
 
 # ---------- opinion list/detail ----------

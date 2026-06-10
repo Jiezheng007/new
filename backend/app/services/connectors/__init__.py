@@ -21,6 +21,7 @@ from app.models.datasource import DataSource
 SOURCE_TYPE_RSS = "rss"
 SOURCE_TYPE_JSON_URL = "json_url"
 SOURCE_TYPE_STATIC_DEMO = "static_demo"
+SOURCE_TYPE_WEIBO = "weibo"
 SOURCE_TYPE_CSV = "csv"
 SOURCE_TYPE_JSON_IMPORT = "json_import"
 
@@ -28,6 +29,7 @@ ALL_SOURCE_TYPES: tuple[str, ...] = (
     SOURCE_TYPE_RSS,
     SOURCE_TYPE_JSON_URL,
     SOURCE_TYPE_STATIC_DEMO,
+    SOURCE_TYPE_WEIBO,
     SOURCE_TYPE_CSV,
     SOURCE_TYPE_JSON_IMPORT,
 )
@@ -83,12 +85,13 @@ class BaseConnector:
 def _get_connector_registry() -> dict[str, Type[BaseConnector]]:
     # Local import to avoid a circular dependency: connectors import models
     # only, and the registry is resolved at first use.
-    from app.services.connectors import json_url, rss, static_demo  # noqa: F401
+    from app.services.connectors import json_url, rss, static_demo, weibo  # noqa: F401
 
     return {
         SOURCE_TYPE_RSS: rss.RssConnector,
         SOURCE_TYPE_JSON_URL: json_url.JsonUrlConnector,
         SOURCE_TYPE_STATIC_DEMO: static_demo.StaticDemoConnector,
+        SOURCE_TYPE_WEIBO: weibo.WeiboConnector,
     }
 
 
