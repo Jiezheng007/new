@@ -1,13 +1,13 @@
-"""Data-source management API (Phase 3 / Issue 4).
+"""Data-source management API (Phase 3 / Issue 4, Phase 11 / Issue 14).
 
-Admin-only CRUD for RSS / JSON / static-demo sources. Manual ``POST .../fetch``
-runs the configured connector and persists normalized records as
-``OpinionItem`` rows. Every state change writes an audit row.
+Admin-only CRUD for RSS / JSON / static-demo / Weibo sources. Manual
+``POST .../fetch`` delegates to :func:`app.services.datasource_fetch.fetch_datasource`,
+the same routine the background scheduler uses, so the two code paths
+cannot drift apart. Every state change writes an audit row.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
@@ -24,9 +24,7 @@ from app.schemas.datasources import (
     FetchResult,
 )
 from app.services.audit import get_client_ip, record_audit
-from app.services.connectors import ConnectorError, get_connector
-from app.services.ingestion import IngestionError, ingest_via_connector
-from app.services.analysis import analyze_batch, opinions_by_ids
+from app.services.datasource_fetch import ORIGIN_MANUAL, fetch_datasource
 
 
 router = APIRouter(prefix="/api/datasources", tags=["datasources"])
@@ -220,94 +218,29 @@ def manual_fetch(
             target_type="datasource",
             target_id=str(source.id),
             result="failure",
-            detail={"reason": "disabled", "code": source.code},
+            detail={"reason": "disabled", "code": source.code, "origin": ORIGIN_MANUAL},
             ip_address=ip,
         )
         db.commit()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="数据源已停用,无法触发抓取")
 
-    try:
-        connector = get_connector(source.source_type)
-    except ConnectorError as e:
-        record_audit(
-            db,
-            actor=admin,
-            action="datasource.fetch",
-            target_type="datasource",
-            target_id=str(source.id),
-            result="failure",
-            detail={"reason": "unsupported_source_type", "code": source.code, "error": str(e)},
-            ip_address=ip,
-        )
-        db.commit()
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-
-    try:
-        result = ingest_via_connector(db, source, connector, origin="ingest")
-    except ConnectorError as e:
-        source.latest_fetch_at = datetime.now(timezone.utc)
-        source.latest_fetch_status = "failure"
-        source.latest_fetch_message = str(e)[:500]
-        source.latest_items_count = 0
-        record_audit(
-            db,
-            actor=admin,
-            action="datasource.fetch",
-            target_type="datasource",
-            target_id=str(source.id),
-            result="failure",
-            detail={"reason": "fetch_error", "code": source.code, "error": str(e)},
-            ip_address=ip,
-        )
-        db.commit()
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e))
-    except IngestionError as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)) from e
-
-    source.latest_fetch_at = datetime.now(timezone.utc)
-    source.latest_fetch_status = "success" if result.rejected == 0 and not result.errors else "partial"
-    source.latest_fetch_message = (
-        f"accepted={result.accepted} rejected={result.rejected} duplicate={result.duplicate}"
-    )
-    source.latest_items_count = result.accepted
-
-    # Run analysis on the freshly inserted items. analyze_batch never
-    # raises on provider failure (it records status='failed'), so the
-    # fetch response is unaffected by an unhappy NLP service.
-    analyzed_count = 0
-    if result.sample_ids:
-        opinions = opinions_by_ids(db, result.sample_ids)
-        analyzed = analyze_batch(db, opinions)
-        analyzed_count = sum(1 for r in analyzed if r.status == "success")
-        failed_count = len(analyzed) - analyzed_count
-        if failed_count:
-            source.latest_fetch_message += f" analyzed={analyzed_count} failed={failed_count}"
-
-    record_audit(
-        db,
-        actor=admin,
-        action="datasource.fetch",
-        target_type="datasource",
-        target_id=str(source.id),
-        result="success" if result.rejected == 0 else "partial",
-        detail={
-            "code": source.code,
-            "accepted": result.accepted,
-            "rejected": result.rejected,
-            "duplicate": result.duplicate,
-            "analyzed": analyzed_count,
-        },
-        ip_address=ip,
-    )
+    outcome = fetch_datasource(db, source, actor=admin, origin=ORIGIN_MANUAL)
     db.commit()
+    if outcome.error is not None:
+        # Connector/transport errors become a 502 - the upstream is
+        # unreachable, malformed, or unsupported. Other failures (e.g.
+        # all records rejected) still return 200 with a "partial" status
+        # so the operator can read counts from the body.
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(outcome.error))
+
     return FetchResult(
         source_id=source.id,
         source_code=source.code,
-        status=source.latest_fetch_status,
-        accepted=result.accepted,
-        rejected=result.rejected,
-        duplicate=result.duplicate,
-        errors=result.errors,
-        message=source.latest_fetch_message,
+        status=outcome.status,
+        accepted=outcome.accepted,
+        rejected=outcome.rejected,
+        duplicate=outcome.duplicate,
+        errors=outcome.errors,
+        message=outcome.message,
         fetched_at=source.latest_fetch_at,
     )

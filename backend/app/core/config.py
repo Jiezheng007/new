@@ -12,6 +12,9 @@ class Settings(BaseSettings):
     bootstrap_admin_username: str = "admin"
     bootstrap_admin_password: str = "admin123"
     nlp_provider: str = "keyword_nlp"
+    scheduler_enabled: bool = True
+    scheduler_interval_seconds: int = 300
+    scheduler_fetch_batch_limit: int = 20
 
 
 @lru_cache

@@ -1,6 +1,8 @@
 """FastAPI application entrypoint: wires routers, mounts static files, runs bootstrap."""
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
@@ -8,12 +10,23 @@ from pathlib import Path
 from app.api import auth, dashboard, protected, users, rules, datasources, opinions, imports, alerts, tickets, reports, audit
 from app.core.config import get_settings
 from app.services.bootstrap import init_db
+from app.services.scheduler import start_scheduler_if_enabled, stop_scheduler
 from app.web.routes import pages_router, web_router
+
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    init_db()
+    await start_scheduler_if_enabled()
+    try:
+        yield
+    finally:
+        await stop_scheduler()
 
 
 def create_app() -> FastAPI:
     settings = get_settings()
-    app = FastAPI(title=settings.app_name, version="0.1.0")
+    app = FastAPI(title=settings.app_name, version="0.1.0", lifespan=_lifespan)
 
     static_dir = Path(__file__).resolve().parent.parent / "static"
     app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
@@ -32,10 +45,6 @@ def create_app() -> FastAPI:
     app.include_router(audit.router)
     app.include_router(web_router)
     app.include_router(pages_router)
-
-    @app.on_event("startup")
-    def _on_startup() -> None:
-        init_db()
 
     return app
 
