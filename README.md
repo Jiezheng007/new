@@ -1,577 +1,278 @@
 # 舆情风控管理系统 MVP
 
-FastAPI + SQLAlchemy + Jinja2 modular monolith implementing the public-opinion
-risk-control MVP. See `PRD.md`, `requirement.md`, and `PRD.issue.md` for the
-full product, architecture, and issue plan; `generated-issues.md` is the
-phased issue list (current scope: Phase 10 — Course-demo happy path).
+> FastAPI + SQLAlchemy + Jinja2 模块化单体,实现从舆情接入到工单归档的完整可演示闭环。
 
-## Phase 10 status — Course-demo happy path
+---
 
-Phases 1–9 built every piece the PRD calls for (auth shell, user
-management, rules, ingestion, NLP + scoring, alerts, tickets,
-dashboard, reports, audit). Phase 10 ties the whole loop together
-and proves the architecture decisions through working behaviour:
+## 一、项目概述
 
-- **Bundled demo data refresh** (`backend/static/demo/sample_opinions.{csv,json}`):
-  the CSV was rewritten to use Chinese punctuation inside the
-  content field so the CSV parser no longer splits long sentences
-  on the row delimiter. `csv-004` now carries a clearly negative,
-  sensitive-keyword-rich payload (`某公司被通报严重违规`,
-  `重大安全隐患`, `数据泄露事故`, `查处`), so the import-only path
-  also produces a high/severe-risk alert without needing the
-  built-in `static_demo` source.
-- **End-to-end happy-path test**
-  (`backend/tests/test_e2e_happy_path.py`): one test walks
-  login → static-demo fetch → bundled CSV/JSON import → auto-analysis
-  → alert confirm/ignore → ticket convert → handler completes →
-  risk_control archives → report queue → background worker → xlsx
-  download → admin dashboard → auditor reviews the full audit
-  trail. The test asserts at every state transition and verifies
-  that every expected `auth.login` / `datasource.fetch` /
-  `import.demo` / `alert.*` / `ticket.*` / `report.*` audit row
-  is present.
-- **Scripted demo verifier** (`backend/scripts/demo_e2e.py`): a
-  CLI version of the same loop, but it talks to a real running
-  `uvicorn` instance over HTTP instead of the in-process
-  `TestClient`. Useful when demoing to a live audience and when
-  validating that the report-center `BackgroundTasks` worker
-  actually completes after the request session is torn down.
-  Each step prints a single coloured line so the demo terminal is
-  easy to follow:
+### 1.1 它解决什么问题
 
-      python scripts/demo_e2e.py --base-url http://localhost:8000
+网络舆情来源分散、传播速度快,组织需要及时发现与自身相关的负面信息,对高危内容做出预警并推动责任人员完成处置。本系统面向**舆情监测 → 风险识别 → 分级预警 → 协同处置 → 报告审计**的端到端业务场景,提供一套可运行的管理端 Web 应用与后端服务。
 
-- **Architecture in the loop**: the happy path exercises every
-  architecture decision the PRD lists:
-  - *event-driven*: confirming an alert -> creating a ticket ->
-    completing a ticket -> queuing a report each writes an audit
-    event picked up by the auditor view at the end.
-  - *pipeline-filter*: `static_demo` + CSV + JSON all flow through
-    the shared `ingest_records` → cleaner → dedup → `analyze_batch`
-    funnel; the same code path produces the same opinion-item
-    shape regardless of source.
-  - *data-centred / SQLAlchemy*: every state transition lands in
-    the database before the response returns, and the auditor
-    view at the end reads it back through the same ORM the writers
-    used.
+### 1.2 核心业务闭环
 
-Test totals: **290 / 290 green** (289 from Phases 1–9 + 1 new
-end-to-end test for Phase 10).
+```
+数据接入(数据源拉取 / CSV·JSON 导入)
+        ↓
+  标准化、清洗、去重
+        ↓
+  NLP 情感分析
+        ↓
+  风险规则评分(敏感词 / 主体 / 来源权重 / 热度)
+        ↓
+  高 / 严重风险自动生成待确认预警
+        ↓
+  风控人员确认 / 忽略
+        ↓
+  已确认预警转工单 → 派发处置人员 → 提交结果 → 归档
+        ↓
+  异步生成 Excel 报告(概览 / 汇总 / 明细)
+        ↓
+  关键操作全程审计可追溯
+```
 
-## Phase 9 status — Audit log review
+### 1.3 五类角色
 
-Phases 1–8 already write audit rows for every important state change
-(login, user/role, data-source, rule, alert, ticket, report create /
-download). Phase 9 surfaces those rows: an auditor-facing list page
-with filters, an API, and the missing `auth.login` / `auth.logout`
-hooks so the login domain shows up alongside the rest.
+| 角色 | 主要职责 | 典型操作 |
+|---|---|---|
+| 系统管理员 `admin` | 维护用户、角色、权限、数据源、风险规则 | 用户管理、规则配置、数据源配置 |
+| 风控人员 `risk_control` | 查看舆情、确认预警、创建工单、生成报告 | 舆情分析、预警处置、工单派发、报告下载 |
+| 处置人员 `handler` | 处理分配给自己的工单 | 接受工单、提交处理结果 |
+| 审计人员 `auditor` | 查看操作日志和规则变更记录 | 审计日志多维查询 |
+| 普通查看 `viewer` | 只读查看工作台、舆情、报告 | 浏览 KPI、阅读报告 |
 
-- **Login auditing** (`app/api/auth.py`): every login attempt now
-  writes one `auth.login` row. Success carries the user id; failure
-  is split into `unknown_user`, `user_disabled`, and `bad_password`
-  in the detail blob so an operator can tell brute-force from a
-  disabled-account ping. A best-effort `auth.logout` row is written
-  when the cookie still resolves to a user.
-- **Audit service** (`app/services/audit.py`): the existing
-  `record_audit` writer is unchanged. New read helpers
-  (`list_audit_logs`, `get_audit_log`, `audit_log_facets`) own the
-  filter translation so the API stays thin. Filters are
-  AND-combined: `action`, `target_type`, `target_id`, `actor`
-  (matches username or numeric id), `result`, `start_at` / `end_at`,
-  and `q` (substring against the JSON `detail`).
-- **API** (`/api/audit-logs`): paginated list, `facets` for distinct
-  dropdown values, and `{id}` detail. The router is read-only by
-  contract — a regression test enumerates the routes and asserts no
-  POST / PUT / PATCH / DELETE exists. Reading the log is itself
-  *not* audited; doing so would produce an unbounded
-  `audit.list → audit row → audit.list` recursion.
-- **Authorization**: only `admin` and `auditor` can read. Every
-  other role (risk_control, handler, viewer) gets a 403 on every
-  endpoint, including `facets` and detail.
-- **Web UI** (`/web/audit`): server-rendered page with the same
-  panel/form/table shape as the other backend-management pages.
-  Action and target dropdowns are populated from `/facets` so a new
-  audit action shows up automatically without a UI patch. Detail
-  blobs are JSON-pretty-printed in a dialog when an operator clicks
-  a row. The page sits in the auditor + admin navs only.
-- **Demo path** (continues from Phase 8): admin fetches data →
-  ingestion + analysis + alert + ticket + report rows are written →
-  auditor opens `/web/audit`, filters by `action=report.download`,
-  expands a row, and sees the full IP / actor / target / detail
-  trail. Login failures (bad password, unknown user) and successes
-  show up alongside.
+### 1.4 架构风格
 
-Test totals: **289 / 289 green** (262 from Phases 1–8 + 27 new for Phase 9).
+本系统采用**事件驱动 + 管道-过滤器 + 数据为中心**的混合架构(详见 `requirement.md`):
 
-## Phase 8 status — Report center
+- **事件驱动**:预警生成、工单流转、报告异步生成、审计写入均通过事件/任务解耦
+- **管道-过滤器**:采集 → 标准化 → 清洗 → 去重 → NLP → 风险评分,每个阶段独立可替换
+- **数据为中心**:舆情、预警、工单、报告、用户权限、审计日志统一通过 SQLAlchemy ORM 持久化
 
-Phases 1–7 built the shell, users, rules, ingestion, analysis, alerts,
-tickets, and the workbench dashboard. Phase 8 closes the demo loop with
-an asynchronous Excel report center: risk-control users can queue a
-report against any filter combination, watch it run in the background,
-and download the resulting `.xlsx` once it lands.
+课程实现落地形式为 **FastAPI 模块化单体**,业务模块按域拆分,内部通过 Service 层解耦,便于后续演进为微服务。
 
-- **`ReportTask` ORM model** (`app/models/report.py`): one row per
-  queued report, with a four-state machine
-  `pending → generating → completed | failed` and a snapshot of the
-  filters (`start_at`, `end_at`, `risk_level`, `subject_keyword`),
-  matched / included counts, file path / size, and a creator snapshot
-  so the row still tells a coherent story if the user is later
-  disabled. `started_at` / `completed_at` / `error_message` round out
-  the lifecycle columns.
-- **Service** (`app/services/reports.py`): one place owns the filter
-  translation, the worker, and the Excel writer. The
-  `_build_base_query` helper is shared by the list endpoint, the
-  worker, and the test helper so the report is, by definition, the
-  filtered list rendered into a file. `_normalize_filters` rejects
-  bad combinations (start > end, unknown risk level) at the service
-  boundary with a typed `ReportInputError`.
-- **Async worker** (`process_report_task`): the API schedules the
-  worker with FastAPI's `BackgroundTasks`. The worker opens its own
-  short-lived `SessionLocal` (the request-scoped session is already
-  closed by the time a BackgroundTask fires) and walks
-  `pending → generating → completed` or `→ failed`. Re-running on
-  a row already in `generating` is a no-op so a duplicate background
-  fire cannot double-write the file.
-- **Excel writer**: 3-sheet workbook via `openpyxl` —
-  概览 (one-row filter summary + count-by-risk), 汇总 (count-by-source /
-  -day / -sentiment), 明细 (one row per matched opinion with all the
-  columns the user can see in the opinion list, with explanation text
-  inlined from the Phase 4 factors dict). Columns are auto-sized in a
-  CJK-aware way (Chinese chars count as 2× wide). File path defaults
-  to a sibling of the SQLite DB so a workspace copy stays
-  self-contained; `REPORT_STORAGE_DIR` env override is honoured (the
-  test suite uses this for isolation).
-- **API** (`/api/reports`): list (`status` filter, `creator_id`),
-  detail, `summary` (counts by status), `POST` to create, and
-  `GET .../download` to stream the generated `.xlsx`. Read access
-  for admin / risk_control / auditor / viewer; write access for
-  admin / risk_control only. Handler is blocked from every endpoint
-  (read or write). A pending / generating / failed task returns 409
-  on download; a completed task whose file is missing returns 410
-  (the operator can see what happened from the audit log).
-- **Audit trail**: every state change writes an `AuditLog` row with
-  actor, action (`report.create` / `report.download`), target_id,
-  result (`success` or `failure`), IP, and a JSON detail. A
-  `failure` row is written for: invalid filters, missing / not-ready
-  task, and missing file — so an operator can later trace
-  "who tried to fetch what" without losing context.
-- **Web UI** (`/web/reports`): server-rendered page with two panels —
-  "生成新报告" (filter form) and "报告任务" (list with status pill,
-  matched count, download link). A detail dialog shows the full
-  filter summary, lifecycle timestamps, file size, and a download
-  button when the task is `completed`. The page polls every 5
-  seconds while any visible task is still `pending` / `generating`
-  so an operator who walks away with a long task in flight still
-  sees the transition.
-- **Demo path** (continues from Phase 6): admin fetches the static
-  demo → 2 pending alerts → risk_control confirms one → converts to
-  ticket → handler completes → risk_control archives. Phase 8
-  extends this with: risk_control creates a report task
-  (`risk_level=high`, optional time range), the background worker
-  produces the `.xlsx` in a fraction of a second, the list page
-  shows a `已生成` link, the user downloads the file, and the
-  audit log records both the create and the download.
+### 1.5 前端技术形态
 
-Test totals: **262 / 262 green** (230 from Phases 1–7 + 32 new for Phase 8).
+管理端采用 **服务端渲染 (Jinja2) + 原生 JavaScript** 的方案,**不引入前端框架或独立 `frontend/` 目录**:
 
-## Phase 7 status — Workbench dashboard
+- 页面骨架由 `backend/templates/_layout.html` 与各业务页模板服务端渲染输出,首屏即可用
+- 列表/筛选/对话框/轮询等交互逻辑由 `backend/static/*.js` 中各页面级 JS 文件承担
+- 风格统一样式位于 `backend/static/app.css`
 
-Phases 1–6 built the shell, users, rules, ingestion, analysis, alerts,
-and the ticket lifecycle. Phase 7 layers a workbench dashboard on top
-of the data wired up by the earlier phases: a one-screen overview that
-risk-control can glance at to gauge the current state of the queue.
+这种取舍是为了把课程作业的复杂度集中在后端业务闭环上;若需演进为 SPA,可将现有 JS 抽离为独立前端项目并复用 `app/api/` 下的 OpenAPI 契约。
 
-- **Workbench panel** (`/web/workbench`): KPI cards (opinion total,
-  positive / neutral / negative breakdown, alert pressure, open
-  tickets) plus a 7-day trend chart and a "latest alerts" / "my
-  open tickets" feed. Server-rendered through the same Jinja shell
-  so no new client-side framework is added.
-- **`/api/dashboard/summary`**: a single endpoint that aggregates
-  the metrics the panel needs (counts + trend buckets + latest
-  items) so the page can render in one round trip.
-- **Role-aware**: every role lands on `/web/workbench` after login;
-  the cards adapt to what that role is allowed to see (handler
-  sees "my tickets" instead of the full ticket pipeline).
+---
 
-Test totals: **230 / 230 green** (209 from Phases 1–6 + 21 new for Phase 7).
+## 二、功能特性一览
 
-## Phase 6 status — Ticket lifecycle
+- **认证与 RBAC**:JWT + Cookie 双通道、五类角色、按权限点细粒度鉴权
+- **数据源管理**:RSS / JSON URL / 内置 `static_demo` 三种类型,支持手动拉取与最近拉取状态展示
+- **数据导入**:CSV / JSON 文件上传,以及一键加载内置演示包
+- **舆情管理**:分页、按关键词/来源/时间/情感/风险等级/分析状态多维筛选
+- **可插拔 NLP**:`NlpProvider` 抽象 + 默认 `KeywordNlpProvider` 离线词典实现,可替换为第三方 API
+- **风险评分**:0-100 分综合评分,自动映射到 `低 / 中 / 高 / 严重` 四档,管理员可调阈值
+- **预警生命周期**:高/严重风险自动建 `pending` 预警 → 确认 / 填写原因忽略
+- **工单流转**:已确认预警转工单,四态状态机(待派发 / 处理中 / 已完成 / 已归档)
+- **报告中心**:异步生成三页 Excel(概览 + 汇总 + 明细),支持按风险等级/时间/主体关键词过滤
+- **工作台**:登录首页一屏展示舆情、负面占比、待确认预警、待处理工单、7 日趋势
+- **审计日志**:登录/退出、用户/角色/数据源/规则/预警/工单/报告关键操作全程留痕,审计员可多维过滤
 
-Phase 1 built the authenticated shell; Phase 2 added user & role
-management; Phase 3 layered risk-rule configuration, public-data
-ingestion, and CSV / JSON import; Phase 4 wired the analysis + risk
-scoring pipeline; Phase 5 turned high / severe-risk items into a
-first-class alert lifecycle. Phase 6 closes the loop with a full ticket
-workflow on top of the confirmed alerts from Phase 5:
+---
 
-- **`Ticket` ORM model** (`app/models/ticket.py`): one row per
-  confirmed alert, unique on `alert_id`. Four states — `unassigned`,
-  `in_progress`, `completed`, `archived` — plus snapshot fields
-  (risk level / score / title / description) and audit-friendly
-  per-transition columns (`assignee_*`, `started_at`, `completed_*`,
-  `archived_*`, `created_by_*`). The `OpinionItem` is also FK-linked
-  so the ticket still tells a coherent story if its source alert
-  is later re-computed.
-- **State machine** (`app/services/tickets.py`):
-  - `create_ticket_from_alert` — only `confirmed` alerts can be
-    converted (pending / ignored are rejected with HTTP 409).
-    Optional `assignee_id` jumps the ticket straight to
-    `in_progress`; otherwise it starts in `unassigned`.
-  - `assign_ticket` — legal from `unassigned` (→ `in_progress`),
-    `in_progress`, or `completed`. `archived` rejects with 409.
-  - `start_ticket` — handler accept. `completed` / `archived`
-    reject; assigned handler enforced both at API and service
-    layer so direct callers cannot bypass.
-  - `complete_ticket` — handler submits a non-blank
-    `handling_result` (≥ 2 chars). `in_progress` only.
-  - `archive_ticket` — risk-control closes the loop from
-    `completed` only. Already-archived is a no-op.
-- **API** (`/api/tickets`): list (filters: status, level, assignee,
-  keyword, time range), detail, `POST /from-alert`, `POST .../assign`,
-  `POST .../start`, `POST .../complete`, `POST .../archive`,
-  `GET .../summary`. Read access for admin / risk_control / handler
-  (handler is auto-scoped to their own tickets) / auditor. Write
-  access for admin / risk_control; handler can only `start` /
-  `complete` on their own assignments. Viewers are blocked from
-  every endpoint.
-- **Audit trail**: every state change writes an `AuditLog` row with
-  actor, action (`ticket.create` / `ticket.assign` / `ticket.start`
-  / `ticket.complete` / `ticket.archive`), target_id, result, IP
-  address, and a JSON detail (alert id, opinion id, risk level /
-  score, assignee, status). Invalid-state attempts and assignment
-  to a non-handler also write a `failure` audit row before the
-  error response.
-- **Web UI** (`/web/tickets`): server-rendered list page with the
-  same filter form as alerts, a status pill for the ticket state,
-  a detail dialog with full opinion + alert snapshot, an "assign /
-  re-assign" dialog (manager-only), a "submit handling result"
-  dialog (handler-only), and an "archive" action. The
-  `/web/alerts` detail dialog surfaces a "转为工单" shortcut that
-  deep-links into `/web/tickets?from_alert=<id>` and opens the
-  create dialog pre-populated with the alert's opinion title.
-- **Demo path** (continues from Phase 5): admin fetches the static
-  demo → 2 pending alerts → risk_control confirms one → risk_control
-  converts to ticket and assigns `handler` → handler completes with
-  a result → risk_control archives. The full chain is end-to-end
-  exerciseable in the UI without database edits.
+## 三、快速开始
 
-Test totals: **209 / 209 green** (171 from Phases 1–5 + 38 new for Phase 6).
+### 3.1 环境要求
 
-## Phase 5 status — Alert lifecycle
+- Python ≥ 3.10(建议 3.12)
+- SQLite(默认,开箱即用)或任何 SQLAlchemy 支持的关系型数据库
 
-Phase 1 built the authenticated shell; Phase 2 added user & role
-management; Phase 3 layered risk-rule configuration, public-data
-ingestion, and CSV / JSON import; Phase 4 wired the analysis + risk
-scoring pipeline on top. Phase 5 turns the high / severe-risk items
-from Phase 4 into a first-class alert lifecycle that risk-control users
-operate on:
+### 3.2 安装与启动
 
-- **`Alert` ORM model** (`app/models/alert.py`): one row per high /
-  severe-risk opinion, unique on `opinion_item_id`. Three states —
-  `pending`, `confirmed`, `ignored` — plus a snapshot of the
-  Phase 4 score explanation so the alert still tells a coherent story
-  if the underlying analysis row is later re-computed.
-- **Auto-creation hook** (`app/services/alerts.py` +
-  `app/services/analysis.py`): `analyze_opinion` calls
-  `ensure_alert_for_analysis` after every successful analysis. A new
-  `pending` row is inserted iff the analysis succeeded, the level is
-  `high` or `severe`, and no alert already exists for that opinion.
-  This means `manual_fetch`, `import/csv`, `import/json`,
-  `import/demo`, `POST /api/opinions/{id}/analyze`, and
-  `POST /api/opinions/analyze-pending` all auto-create alerts through
-  the same funnel — no extra wiring in each call site.
-- **State machine**: confirmed / ignored alerts reject further
-  transitions with HTTP 409. Ignore requires a non-blank reason (≥ 2
-  characters); the reason is required at both the pydantic schema and
-  the service layer so it cannot be bypassed by a direct call.
-- **API** (`/api/alerts`): list (filters: status, level, source,
-  keyword, time range), detail, `POST .../confirm`,
-  `POST .../ignore`, `GET .../summary`. Read access for admin /
-  risk_control / auditor; write access for admin / risk_control only.
-  Handlers and viewers are blocked from every endpoint.
-- **Audit trail**: every state change writes an `AuditLog` row with
-  actor, action (`alert.confirm` / `alert.ignore`), target_id,
-  result, IP address, and a JSON detail (`risk_level`, `risk_score`,
-  `opinion_item_id`, and — on ignore — the reason). Invalid-state
-  attempts also write a `failure` audit row before the 409 response.
-- **Web UI** (`/web/alerts`): server-rendered list page with the same
-  filter form as the opinion list, a status pill for the alert
-  (`pending` / `confirmed` / `ignored`), a detail dialog that shows
-  the original opinion + the Phase 4 score explanation, and confirm
-  / ignore actions. Auditor and handler / viewer sessions see the
-  list + detail in read-only mode; only admin / risk_control see the
-  action buttons.
-- **Re-uses Phase 4 demo data**: a fresh `seed_data.py` + a static
-  demo fetch leaves two `pending` alerts in the DB, ready for
-  confirmation / ignoring in the demo.
+```bash
+cd backend
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+pip install feedparser        # 可选:仅在需要真实 RSS 拉取时安装
 
-Test totals: **171 / 171 green** (141 from Phases 1–4 + 30 new for Phase 5).
+# 初始化数据库(创建表 + 种子五类角色、风险阈值、演示数据源、五类演示账号)
+python scripts/seed_data.py
 
-## Phase 4 status — Analysis + risk scoring
+# 启动开发服务器
+uvicorn app.main:app --reload --port 8000
+```
 
-Phase 1 built the authenticated shell; Phase 2 added user & role
-management; Phase 3 layered risk-rule configuration, public-data
-ingestion, and CSV / JSON import. Phase 4 wires the analysis pipeline on
-top: every persisted opinion flows through a replaceable `NlpProvider`,
-is scored against the active rules, and is exposed with sentiment, risk
-score, level, and a per-factor explanation.
+浏览器打开 <http://localhost:8000/login> 即可登录。
 
-- **NLP provider abstraction** (`app/services/nlp/`): `BaseNlpProvider` +
-  `NlpResult` contract. Default implementation is the deterministic
-  `KeywordNlpProvider` (Chinese keyword dictionary) so the demo runs
-  offline. Pluggable registry reads `NLP_PROVIDER` from settings.
-- **Risk scoring** (`app/services/scoring.py`): `compute_risk` combines
-  sentiment, severity-weighted sensitive-keyword hits, monitored subject
-  hits, source weight, and a recency heat proxy into a 0-100 score,
-  capped at 100. The score is then mapped to `low` / `medium` / `high` /
-  `severe` using the `RiskThreshold` rows from Phase 3 (so changing
-  thresholds re-maps every opinion without re-running NLP).
-- **Analysis orchestration** (`app/services/analysis.py`): `analyze_opinion`
-  runs NLP + scoring for one item and upserts the `AnalysisResult` row.
-  Provider failures are caught and stored as `status='failed'` with an
-  `error_message`; the function never raises. `analyze_batch` is used by
-  ingestion / import / retry paths. `pending_opinions` returns items
-  without a successful analysis for the manual retry endpoint.
-- **Auto-analysis on ingestion**: after every successful `manual_fetch`,
-  CSV / JSON upload, or `import/demo` call, the API runs `analyze_batch`
-  on the freshly inserted `OpinionItem` rows. Failed analyses do not
-  block the request — the fetch / import response is unaffected.
-- **API + UI**: every `OpinionItemOut` now includes a nested
-  `AnalysisResultOut` (sentiment, confidence, provider, score, level,
-  status, error_message, factors, explanation, analyzed_at). The list
-  endpoint accepts `sentiment`, `risk_level`, and `analysis_status`
-  filters. Two new endpoints: `POST /api/opinions/{id}/analyze` and
-  `POST /api/opinions/analyze-pending` — both admin / risk_control, both
-  write audit rows. The web UI opinion list shows sentiment / level /
-  status pills; the detail dialog renders the analysis section with
-  factors + a "重新分析" button.
-- **Demo data refresh**: the built-in `static_demo` source and the
-  bundled CSV / JSON sample data were updated so two of the items
-  contain clearly negative content + sensitive keywords (重大, 安全,
-  严重, 泄露, 违规, 查处) and a monitored subject (监管部门, 某品牌).
-  After a fresh `seed_data.py`, the demo immediately shows a
-  high/severe-risk opinion in the list with a full explanation.
+### 3.3 内置演示账号
 
-Test totals: **141 / 141 green** (114 from Phases 1–3 + 27 new for Phase 4).
+`seed_data.py` 会为每类角色创建一个演示账号,密码可在 `.env` 中修改:
 
-## Phase 3 status — Risk rules, ingestion, and import
+| 角色 | 账号 | 密码 |
+|---|---|---|
+| 系统管理员 | `admin` | `admin123` |
+| 风控人员 | `risk` | `risk123` |
+| 处置人员 | `handler` | `handler123` |
+| 审计人员 | `auditor` | `auditor123` |
+| 普通查看 | `viewer` | `viewer123` |
 
-Phase 1 built the authenticated shell; Phase 2 added user & role management;
-Phase 3 layers risk-rule configuration, public-data ingestion, and CSV / JSON
-import on top. The audit log table built in Phase 2 is now reused for every
-new write path.
+---
 
-- **Risk rules** (`/api/rules/*`, `/web/rules`): admin can manage sensitive
-  keywords, subject (monitored) keywords, and the four risk-level thresholds
-  (low / medium / high / severe). Threshold updates must be strictly
-  increasing. Every change writes an `AuditLog` row.
-- **Data sources** (`/api/datasources`, `/web/datasources`): admin can create
-  RSS / JSON URL / static-demo sources, set per-source weight, toggle enable,
-  and trigger a manual fetch. Fetch runs the configured connector, normalizes
-  records into a common opinion-item shape, dedupes by `(source_id,
-  content_hash)`, and reports accepted / rejected / duplicate counts.
-- **Connectors**: pluggable adapter registry under
-  `app/services/connectors/` with a built-in `static_demo` source so the
-  course demo works without any external network. RSS uses `feedparser`
-  (optional dependency) and `httpx`; missing dependency → clear 502 error.
-- **Opinion items** (`/api/opinions`, `/web/opinions`): any role with
-  `opinion:read` (admin / risk_control / auditor / viewer) can list and view
-  details. Filters: keyword (title / content), source, time range, pagination.
-- **CSV / JSON import** (`/api/import/*`, `/web/import`): risk-control can
-  upload CSV or JSON, or load the bundled demo bundle (`POST /api/import/demo`).
-  Imported rows go through the same ingestion funnel so dedup, audit, and
-  source-tracking are identical to RSS / static-demo paths. Per-row errors are
-  reported alongside the accepted counts.
+## 四、端到端演示
 
-Test totals: **114 / 114 green** (50 from Phases 1–2 + 64 new for Phase 3).
+启动 dev server 后,有两种方式跑通完整业务闭环。
 
-## Project layout
+### 4.1 脚本化验证(推荐用于课程演示)
+
+`scripts/demo_e2e.py` 会按真实用户角色串起 `admin → risk → handler → auditor` 的全流程,每步输出一行彩色日志,适合现场演示。
+
+```bash
+# 终端一:保持服务运行
+uvicorn app.main:app --reload --port 8000
+
+# 终端二:一键跑通闭环
+python scripts/demo_e2e.py
+```
+
+执行步骤:触发静态演示数据源 → 加载 CSV/JSON 演示包 → 风控确认/忽略预警 → 转工单派发 → 处置人员完成 → 风控归档 → 异步生成 Excel 报告 → 下载 → 审计员查询日志。
+
+### 4.2 手动 curl 走查
+
+```bash
+BASE=http://localhost:8000
+
+# --- 1. 管理员登录 ---
+curl -c admin.txt -X POST $BASE/api/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"admin","password":"admin123"}'
+
+# --- 2. 触发内置静态演示数据源(6 条舆情,自动分析,2 条高/严重风险自动建待确认预警) ---
+curl -b admin.txt -X POST $BASE/api/datasources/1/fetch
+
+# --- 3. 一键加载内置 CSV/JSON 演示包 ---
+curl -b admin.txt -X POST $BASE/api/import/demo
+
+# --- 4. 查看高风险舆情 ---
+curl -b admin.txt "$BASE/api/opinions?risk_level=high"
+
+# --- 5. 风控人员确认一条预警 ---
+curl -b admin.txt -X POST $BASE/api/alerts/1/confirm
+
+# --- 6. 已确认预警转工单(assignee_id=3 即 handler 演示账号) ---
+curl -b admin.txt -X POST $BASE/api/tickets/from-alert \
+  -H 'Content-Type: application/json' \
+  -d '{"alert_id":1,"assignee_id":3}'
+
+# --- 7. 处置人员登录并提交处理结果 ---
+curl -c handler.txt -X POST $BASE/api/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"handler","password":"handler123"}'
+curl -b handler.txt -X POST $BASE/api/tickets/1/complete \
+  -H 'Content-Type: application/json' \
+  -d '{"handling_result":"已与企业沟通并取得谅解"}'
+
+# --- 8. 风控人员归档已完成的工单 ---
+curl -b admin.txt -X POST $BASE/api/tickets/1/archive
+
+# --- 9. 异步生成 Excel 报告(高风险) ---
+curl -b admin.txt -X POST $BASE/api/reports \
+  -H 'Content-Type: application/json' \
+  -d '{"title":"高风险周报","risk_level":"high"}'
+
+# --- 10. 轮询直至完成,下载 .xlsx ---
+curl -b admin.txt $BASE/api/reports/summary
+curl -b admin.txt -OJ $BASE/api/reports/1/download
+```
+
+> 默认演示数据完全内置,无需任何外部网络或第三方服务。
+
+---
+
+## 五、Web UI 页面
+
+| 路径 | 用途 | 可见角色 |
+|---|---|---|
+| `/web/workbench` | 工作台首页:KPI 卡片 + 7 日趋势 + 最新预警/工单 | 全部已登录角色 |
+| `/web/datasources` | 数据源管理(CRUD + 手动拉取) | admin |
+| `/web/rules` | 风险规则(敏感词 / 主体词 / 四档阈值) | admin |
+| `/web/users` | 用户与角色管理 | admin |
+| `/web/import` | CSV / JSON 导入 | admin、risk_control |
+| `/web/opinions` | 舆情列表 + 详情 + 重新分析 | admin、risk_control、auditor、viewer |
+| `/web/alerts` | 预警中心(确认 / 忽略) | admin、risk_control、auditor(只读) |
+| `/web/tickets` | 工单管理(派发 / 完成 / 归档) | admin、risk_control、handler、auditor |
+| `/web/reports` | 报告中心(创建任务 + 下载) | admin、risk_control、auditor、viewer |
+| `/web/audit` | 审计日志多维查询 | admin、auditor |
+
+---
+
+## 六、API 速查
+
+完整 OpenAPI 文档:启动服务后访问 <http://localhost:8000/docs>。
+
+按业务域分组的主要接口:
+
+| 业务域 | 路径前缀 | 主要能力 |
+|---|---|---|
+| 认证 | `/api/auth` | 登录、登出、当前用户信息 |
+| 用户与角色 | `/api/users` · `/api/roles` | CRUD、启停、密码重置、角色分配 |
+| 风险规则 | `/api/rules` | 敏感词、主体词、四档阈值 |
+| 数据源 | `/api/datasources` | CRUD、启停、手动拉取 |
+| 舆情 | `/api/opinions` | 多维筛选、详情、重新分析 |
+| 预警 | `/api/alerts` | 列表、确认、忽略、状态汇总 |
+| 工单 | `/api/tickets` | 转工单、派发、开始、完成、归档、状态汇总 |
+| 报告 | `/api/reports` | 异步任务、详情、`.xlsx` 下载 |
+| 导入 | `/api/import` | CSV / JSON / 演示包 |
+| 工作台 | `/api/dashboard` | 聚合指标 + 趋势 + 最新项 |
+| 审计 | `/api/audit-logs` | 多维过滤 + 详情(只读) |
+
+---
+
+## 七、项目结构
 
 ```
 backend/
   app/
-    api/        FastAPI routers (auth, users, rules, datasources, opinions, imports)
-    core/       settings + security primitives (password hashing, JWT)
-    db/         SQLAlchemy engine, session, Base
-    models/     ORM models (User, Role, AuditLog, SensitiveKeyword,
-                SubjectKeyword, RiskThreshold, DataSource, OpinionItem,
-                AnalysisResult, Alert, Ticket, ReportTask)
-    schemas/    pydantic request/response models
-    services/   bootstrap, audit logging, connectors, ingestion, importers,
-                nlp (provider abstraction + keyword implementation),
-                scoring (rule-based risk score), analysis (orchestration),
-                alerts (auto-create + confirm / ignore lifecycle),
-                tickets (state machine + ticket-per-alert rule),
-                reports (async Excel worker + 3-sheet writer)
-    web/        Jinja2 page routes
-    main.py     create_app() entrypoint
-  static/       CSS + JS for the Web UI, bundled demo CSV / JSON samples
-  templates/    Jinja2 templates (login, layout, workbench, users, rules,
-                datasources, opinions, import, …)
-  tests/        pytest suite (auth, web, user_management, rules,
-                datasources, imports, analysis, alerts, tickets,
-                reports, audit, e2e_happy_path)
-  scripts/      dev helpers (seed_data.py, demo_e2e.py — scripted
-                happy-path verifier against a live uvicorn server)
+    api/         FastAPI 路由(各业务域 + RBAC 依赖)
+    core/        配置 + 安全工具(密码哈希、JWT)
+    db/          SQLAlchemy 引擎、会话、Base
+    models/      ORM 模型:User / Role / AuditLog /
+                 SensitiveKeyword / SubjectKeyword / RiskThreshold /
+                 DataSource / OpinionItem / AnalysisResult /
+                 Alert / Ticket / ReportTask
+    schemas/     Pydantic 请求 / 响应模型
+    services/    业务服务层:bootstrap / audit / connectors /
+                 ingestion / importers / nlp / scoring / analysis /
+                 alerts / tickets / reports
+    web/         Jinja2 页面路由
+    main.py      create_app() 入口
+  static/        app.css + 各页面 JS + 演示 CSV / JSON 样例
+  templates/     Jinja2 模板(_layout.html + 12 个业务页)
+  tests/         13 个测试模块,共 290 个 pytest 用例
+  scripts/       seed_data.py / demo_e2e.py
   requirements.txt
   pytest.ini
 ```
 
-## Quick start
+---
 
-```bash
-cd backend
-python3 -m venv .venv          # or: uv venv .venv --python 3.12
-source .venv/bin/activate
-pip install -r requirements.txt
-pip install feedparser         # optional, only needed for live RSS
+## 八、配置
 
-# Initialize the database (creates tables, seeds roles, thresholds,
-# demo data source, admin and demo users)
-python scripts/seed_data.py
+`backend/.env` 可覆盖以下默认值(完整列表见 `backend/.env.example`):
 
-# Run the dev server
-uvicorn app.main:app --reload --port 8000
-```
+| 变量 | 默认值 | 说明 |
+|---|---|---|
+| `SECRET_KEY` | `change-me-in-prod` | HS256 签名密钥,生产环境必须修改 |
+| `DATABASE_URL` | `sqlite:///./yuqing.db` | SQLAlchemy 数据库 URL |
+| `ACCESS_TOKEN_TTL_MINUTES` | `480` | JWT 有效期 |
+| `BOOTSTRAP_ADMIN_USERNAME` | `admin` | 首次启动时创建的管理员账号 |
+| `BOOTSTRAP_ADMIN_PASSWORD` | `admin123` | 首次启动时创建的管理员密码 |
+| `NLP_PROVIDER` | `keyword_nlp` | NLP Provider 名(注册于 `app/services/nlp`) |
+| `REPORT_STORAGE_DIR` | _(未设置则存于 DB 旁)_ | 报告 `.xlsx` 输出目录 |
 
-Open <http://localhost:8000/login> and sign in with `admin / admin123`.
-After login:
+---
 
-- `admin` can visit `/web/datasources`, `/web/rules`, `/web/users`,
-  `/web/alerts`, `/web/reports`
-- `risk` can visit `/web/import`, `/web/opinions`, `/web/alerts`,
-  `/web/tickets`, `/web/reports` (and create / download reports)
-- `handler` lands on `/web/tickets` (own assignments only) and
-  `/web/workbench`
-- `auditor` lands on `/web/audit`; can read `/web/alerts`,
-  `/web/opinions`, `/web/tickets`, `/web/reports` (read-only)
-- `viewer` lands on `/web/workbench` and `/web/reports` (read-only)
-
-## Configuration
-
-Copy `.env.example` to `.env` to override defaults. Notable settings:
-
-| key                          | default                       | purpose                                    |
-| ---------------------------- | ----------------------------- | ------------------------------------------ |
-| `SECRET_KEY`                 | `dev-only-change-me`          | HS256 signing key — change in production   |
-| `DATABASE_URL`               | `sqlite:///./yuqing.db`       | SQLAlchemy database URL                    |
-| `ACCESS_TOKEN_TTL_MINUTES`   | `480`                         | JWT lifetime                               |
-| `BOOTSTRAP_ADMIN_USERNAME`   | `admin`                       | Admin user created on first boot           |
-| `BOOTSTRAP_ADMIN_PASSWORD`   | `admin123`                    | Admin password created on first boot       |
-| `NLP_PROVIDER`               | `keyword_nlp`                 | NLP provider name (registry in `app/services/nlp`) |
-
-## API quick reference
-
-Auth:
-
-| method | path                       | auth         | purpose                                |
-| ------ | -------------------------- | ------------ | -------------------------------------- |
-| POST   | `/api/auth/login`          | none         | username + password → JWT (sets cookie) |
-| POST   | `/api/auth/logout`         | none         | clear access_token cookie              |
-| GET    | `/api/auth/me`             | bearer/cookie| current user profile + permissions    |
-
-User & role management (admin only):
-
-| method | path                                          | purpose                                |
-| ------ | --------------------------------------------- | -------------------------------------- |
-| GET    | `/api/users`                                  | list all users with role + permissions |
-| POST   | `/api/users`                                  | create user (username, password, role) |
-| GET    | `/api/users/{id}`                             | fetch a single user                    |
-| PATCH  | `/api/users/{id}`                             | update full_name, role_id, is_active   |
-| POST   | `/api/users/{id}/reset-password`              | reset password (admin-set or auto)     |
-| GET    | `/api/roles`                                  | list the five MVP roles + permissions  |
-
-Risk rules (writes admin only, reads any logged-in user):
-
-| method | path                                                  | purpose                                          |
-| ------ | ----------------------------------------------------- | ------------------------------------------------ |
-| GET    | `/api/rules/sensitive-keywords`                       | list sensitive keywords                          |
-| POST   | `/api/rules/sensitive-keywords`                       | add a sensitive keyword (severity low→severe)    |
-| PATCH  | `/api/rules/sensitive-keywords/{id}`                  | update category / severity / is_active / remark  |
-| GET    | `/api/rules/subject-keywords`                         | list monitored subject keywords                  |
-| POST   | `/api/rules/subject-keywords`                         | add a subject keyword                            |
-| PATCH  | `/api/rules/subject-keywords/{id}`                    | update category / is_active / remark             |
-| GET    | `/api/rules/thresholds`                               | list low/medium/high/severe cut-offs             |
-| PUT    | `/api/rules/thresholds`                               | replace all four cut-offs (must be strictly ↑)   |
-
-Data sources (admin only):
-
-| method | path                                          | purpose                                              |
-| ------ | --------------------------------------------- | ---------------------------------------------------- |
-| GET    | `/api/datasources`                            | list all data sources                                |
-| POST   | `/api/datasources`                            | create (rss / json_url / static_demo)                |
-| GET    | `/api/datasources/{id}`                       | fetch a single source                                |
-| PATCH  | `/api/datasources/{id}`                       | update name / url / weight / is_enabled / description|
-| POST   | `/api/datasources/{id}/fetch`                 | run the configured connector and persist items       |
-
-Opinion items (any role with `opinion:read`):
-
-| method | path                                | purpose                                                                 |
-| ------ | ----------------------------------- | ----------------------------------------------------------------------- |
-| GET    | `/api/opinions`                     | list with `q`, `source_id`, `source_code`, `start_at`, `end_at`, `sentiment`, `risk_level`, `analysis_status`, `limit`, `offset` |
-| GET    | `/api/opinions/{id}`                | detail of a single opinion item (with nested `analysis`)               |
-| POST   | `/api/opinions/{id}/analyze`        | admin / risk_control — re-run NLP + scoring for one item, write audit   |
-| POST   | `/api/opinions/analyze-pending`     | admin / risk_control — re-run for items without a successful analysis   |
-
-Alerts (admin / risk_control / auditor read; admin / risk_control write):
-
-| method | path                                | purpose                                                                 |
-| ------ | ----------------------------------- | ----------------------------------------------------------------------- |
-| GET    | `/api/alerts`                       | list with `status`, `risk_level`, `source_id`, `q`, `start_at`, `end_at`, `limit`, `offset` |
-| GET    | `/api/alerts/summary`               | count by status (`pending` / `confirmed` / `ignored` / `total`)         |
-| GET    | `/api/alerts/{id}`                  | detail of one alert (with nested opinion summary + trigger explanation) |
-| POST   | `/api/alerts/{id}/confirm`          | pending → confirmed; writes audit                                       |
-| POST   | `/api/alerts/{id}/ignore`           | pending → ignored; body `{ "reason": "..." }` (≥ 2 chars); writes audit |
-
-Tickets (admin / risk_control / auditor read; admin / risk_control write;
-handler scoped to own tickets):
-
-| method | path                                | purpose                                                                 |
-| ------ | ----------------------------------- | ----------------------------------------------------------------------- |
-| GET    | `/api/tickets`                      | list with `status`, `risk_level`, `assignee_id`, `q`, `start_at`, `end_at`, `limit`, `offset` |
-| GET    | `/api/tickets/summary`              | count by status (`unassigned` / `in_progress` / `completed` / `archived` / `total`) |
-| GET    | `/api/tickets/{id}`                 | detail of one ticket (with opinion + alert summary)                     |
-| POST   | `/api/tickets/from-alert`           | convert a `confirmed` alert into a ticket (optional `assignee_id`); 409 on duplicate / wrong state |
-| POST   | `/api/tickets/{id}/assign`          | assign / re-assign a ticket (admin / risk_control only)                 |
-| POST   | `/api/tickets/{id}/start`           | handler accept on their own assignment                                  |
-| POST   | `/api/tickets/{id}/complete`        | body `{ "handling_result": "..." }` (≥ 2 chars); handler only on own ticket |
-| POST   | `/api/tickets/{id}/archive`         | close the loop from `completed` only                                    |
-
-Reports (admin / risk_control / auditor / viewer read; admin / risk_control
-write; handler blocked entirely):
-
-| method | path                                | purpose                                                                 |
-| ------ | ----------------------------------- | ----------------------------------------------------------------------- |
-| GET    | `/api/reports`                      | list with `status`, `creator_id`, `limit`, `offset`                     |
-| GET    | `/api/reports/summary`              | count by status (`pending` / `generating` / `completed` / `failed` / `total`) |
-| GET    | `/api/reports/{id}`                 | detail of one task (filter snapshot, counts, lifecycle timestamps)      |
-| POST   | `/api/reports`                      | body: `title`, `description`, `start_at`, `end_at`, `risk_level`, `subject_keyword`; 201 + schedules the background worker |
-| GET    | `/api/reports/{id}/download`        | stream the generated `.xlsx`; 409 if not yet `completed`, 410 if file is gone |
-
-Imports (admin / risk_control):
-
-| method | path                              | purpose                                                                |
-| ------ | --------------------------------- | ---------------------------------------------------------------------- |
-| POST   | `/api/import/csv`                 | upload a CSV file (`title` + `content` required)                        |
-| POST   | `/api/import/json`                | upload a JSON file or POST `payload` field                              |
-| POST   | `/api/import/demo`                | load the bundled `static/demo/sample_opinions.{csv,json}`               |
-
-Sample role-protected endpoints (used to prove RBAC end-to-end):
-
-| method | path                            | allowed roles       |
-| ------ | ------------------------------- | ------------------- |
-| GET    | `/api/protected/admin`          | admin               |
-| GET    | `/api/protected/risk-control`   | admin, risk_control |
-| GET    | `/api/protected/handler`        | admin, handler      |
-| GET    | `/api/protected/auditor`        | admin, auditor      |
-| GET    | `/api/protected/dashboard`      | any logged-in user  |
-
-Web UI: `GET /login` (form), `GET /web/<page>` (role-aware pages:
-workbench, datasources, rules, import, opinions, alerts, tickets,
-reports, users, audit).
-
-## Testing
+## 九、测试
 
 ```bash
 cd backend
@@ -579,227 +280,42 @@ source .venv/bin/activate
 pytest
 ```
 
-The suite provisions an isolated SQLite database per test run, seeds all five
-roles plus a disabled user, the four risk thresholds, the default sensitive +
-subject keyword set, the static demo data source, and the CSV / JSON import
-sinks. The full suite (290 tests) covers:
+当前 290 个用例全部通过,覆盖:
 
-- **Auth** (`tests/test_auth.py`): login success / wrong-password / unknown-
-  user / disabled-user rejection; logout clears the cookie; `/me` accepts
-  valid tokens and rejects missing or invalid ones; password storage uses a
-  per-user salt; unauthenticated business APIs return 401; admin can access
-  every protected area; risk / handler / auditor / viewer get 200 only on
-  their own areas and 403 elsewhere; Bearer token works the same as cookie.
-- **Web** (`tests/test_web.py`): login page renders; root redirects
-  unauthenticated visitors; role-aware nav contains the right items; cross-
-  role page access returns 403; unauthenticated page access returns 401.
-- **User management** (`tests/test_user_management.py`): admin can list,
-  create, edit, enable/disable, and reset passwords for users; newly created
-  users can log in; non-admin roles get 403; unauthenticated requests get
-  401; an admin cannot disable or demote themselves; duplicate usernames
-  return 409; invalid role_id returns 400; missing user returns 404; every
-  state change writes an `AuditLog` row with actor, action, target, result,
-  IP, and timestamp (and never the actual password); `/api/roles` returns
-  the five MVP roles with permission lists; the `/web/users` page renders
-  for admins and returns 403 for non-admins.
-- **Risk rules** (`tests/test_rules.py`): admin can create / update /
-  toggle sensitive + subject keywords; duplicate keywords return 409;
-  non-admin write attempts return 403; threshold PUT requires all four
-  levels and strictly increasing scores, otherwise 400; every change writes
-  an audit row; the `/web/rules` page renders for admins and returns 403
-  for non-admins.
-- **Data sources & opinions** (`tests/test_datasources.py`): admin-only
-  CRUD on data sources; missing URL for RSS / json_url is rejected with 422;
-  manual fetch of the static demo persists 6 items, runs auto-analysis,
-  and re-fetch dedupes to 6 duplicates; disabled source returns 400; RSS
-  without `feedparser` returns 502 with a clear message; opinion list /
-  detail enforce the `opinion:read` role set (handler is blocked); keyword,
-  source, and time-range filters work; the `/web/datasources` and
-  `/web/opinions` pages render for the right roles and return 403 / 401
-  otherwise.
-- **Imports** (`tests/test_imports.py`): CSV and JSON uploads validate
-  required columns / fields; required-column-missing returns 400; per-row
-  validation failures (e.g. blank title) are reported in the response body
-  without aborting the import; re-upload dedupes correctly; the bundled
-  demo endpoint loads 5 CSV + 4 JSON records on first call and 9 duplicates
-  on re-call; every accepted row is auto-analyzed; non-importer roles get
-  403; the `/web/import` page renders for risk-control and returns 403 for
-  handler.
-- **Analysis + risk scoring** (`tests/test_analysis.py`): the
-  `KeywordNlpProvider` returns the expected sentiment for positive /
-  negative / neutral / unsupported-language text; `compute_risk` produces
-  deterministic factor math and respects the per-severity weight table;
-  the cap on each factor is enforced and the raw contribution is
-  preserved in the persisted factors dict; `analyze_opinion` persists a
-  successful `AnalysisResult` row and never raises on provider / language
-  failure (records `status='failed'` + `error_message`); `analyze_batch`
-  runs against ingestion sample_ids; re-analysis replaces the prior row
-  (one-to-one); `pending_opinions` returns items without a successful
-  analysis; `POST /api/opinions/{id}/analyze` and
-  `POST /api/opinions/analyze-pending` are gated to admin / risk_control,
-  write audit rows, and update the level when thresholds change; list
-  filters `sentiment` / `risk_level` / `analysis_status` work and validate
-  their values; the `/web/opinions` page renders the new sentiment /
-  level / status columns + 重新分析 button.
-- **Alert lifecycle** (`tests/test_alerts.py`): successful high /
-  severe analyses auto-create `pending` alerts (and only those — low /
-  medium / failed analyses do not); re-analyzing the same opinion does
-  not produce a second alert; threshold change can promote a
-  previously-low opinion to high and the next analysis creates an
-  alert; list / detail / confirm / ignore endpoints with filters and
-  pagination; the ignore reason is required (≥ 2 non-whitespace
-  characters, 422 / 400 boundary cases covered); confirmed and ignored
-  alerts reject further transitions (409); handler, viewer, and
-  auditor are blocked from confirm / ignore; admin and risk_control
-  succeed; every state change writes an `AuditLog` row; the
-  `/api/alerts/summary` count matches the per-status breakdown; the
-  `/web/alerts` page renders for admin / risk_control / auditor and
-  returns 403 for handler / viewer.
-- **Ticket lifecycle** (`tests/test_tickets.py`): only `confirmed`
-  alerts can be converted (pending / ignored return 409); one ticket
-  per alert; assignee must be an active handler (admin / disabled
-  / non-handler return 400); assign / start / complete / archive
-  state machine with 409 on invalid transitions; handler visibility
-  is scoped to their own tickets and 403 on a peer's detail; every
-  state change writes an `AuditLog` row; the
-  `/api/tickets/summary` count matches the per-status breakdown; the
-  `/web/tickets` page renders for admin / risk_control / auditor /
-  handler and returns 403 for viewer.
-- **Report center** (`tests/test_reports.py`): happy-path POST
-  creates a task and writes a `report.create` audit row; handler /
-  auditor / viewer are blocked from the write endpoint and handler
-  is blocked from the read endpoints; pydantic rejects an unknown
-  `risk_level` (422) and the service rejects `start_at > end_at`
-  with a `report.create` failure audit row; the worker walks
-  `pending → generating → completed` and populates
-  `matched_count` / `file_size_bytes` / `started_at` /
-  `completed_at`; a writer that raises flips the row to `failed`
-  with `error_message`; re-running on a `generating` row is a no-op;
-  the generated `.xlsx` has the documented three sheets with
-  styled headers and detail rows that match the static demo
-  dataset; download returns the file with the right MIME type for
-  `completed` tasks and 409 / 410 for pending / failed / missing-
-  file paths; every download writes a `report.download` audit row
-  (success or failure); the `/web/reports` page renders for admin /
-  risk_control / auditor / viewer and returns 403 for handler.
-- **Audit log** (`tests/test_audit.py`): every important state
-  change (login / logout, user, role, data source, rule, alert,
-  ticket, report) writes an `AuditLog` row with the right actor,
-  action, target, result, IP, and JSON detail; the auditor
-  endpoint supports filters (action, target_type, target_id,
-  actor, result, time range, free-text `q`) and `facets` returns
-  the distinct action / target_type / actor / result values; only
-  admin / auditor can read; every other role gets 403; the router
-  is read-only by contract (no POST / PUT / PATCH / DELETE); the
-  `/web/audit` page renders for admin / auditor and returns 403
-  for risk_control / handler / viewer.
-- **End-to-end happy path** (`tests/test_e2e_happy_path.py`):
-  one test walks the full Phase 10 course demo against the
-  in-process `TestClient`: admin login → static-demo fetch
-  (asserts 6 accepted) → bundled CSV/JSON import (asserts 9
-  accepted) → risk_control confirms one alert and ignores
-  another → 409 on re-confirm → ticket from-alert with
-  `assignee_id` → handler completes → 409 on re-complete →
-  risk_control archives → high-risk report queued → worker
-  invoked deterministically → task lands in `completed` →
-  download streams a 3-sheet `.xlsx` → admin dashboard reflects
-  the demo state → auditor sees the full audit trail with every
-  important action present, and a filtered list still returns
-  rows for the queried action.
+| 测试模块 | 验证点 |
+|---|---|
+| `test_auth` | 登录成功 / 错误密码 / 禁用账号 / 登出 / `/me` / 密码加盐 |
+| `test_web` | 登录页渲染、角色感知导航、跨角色 403 |
+| `test_user_management` | 用户 CRUD / 启停 / 密码重置 / 角色分配 / 审计写入 |
+| `test_rules` | 敏感词 / 主体词 / 阈值维护 + 审计 |
+| `test_datasources` | CRUD / 手动拉取 / 去重 / 错误源 502 |
+| `test_imports` | CSV / JSON / 演示包导入 + 字段校验 + 去重 |
+| `test_analysis` | NLP 情感 + 风险评分因子计算 + 重新分析 |
+| `test_alerts` | 预警自动创建 / 状态机 / 忽略原因必填 |
+| `test_tickets` | 转工单 / 派发 / 开始 / 完成 / 归档状态机 |
+| `test_reports` | 异步任务、状态机、`.xlsx` 三页结构、下载 |
+| `test_audit` | 关键操作审计写入、多维过滤、只读契约 |
+| `test_dashboard` | 工作台聚合指标 |
+| `test_e2e_happy_path` | 端到端:登录 → 拉取 → 导入 → 确认 → 工单 → 报告 → 审计 |
 
-## Demo happy path (no external network needed)
+---
 
-```bash
-# 1. Login
-curl -c cookies.txt -X POST http://localhost:8000/api/auth/login \
-  -H 'Content-Type: application/json' \
-  -d '{"username": "admin", "password": "admin123"}'
+## 十、相关文档
 
-# 2. Fetch the built-in static demo (6 items, auto-analyzed,
-#    2 high/severe items auto-create pending alerts)
-curl -b cookies.txt -X POST http://localhost:8000/api/datasources/1/fetch
+- [`PRD.md`](./PRD.md) — 完整产品需求与验收标准
+- [`requirement.md`](./requirement.md) — 架构设计决策与质量属性
+- [`PRD.issue.md`](./PRD.issue.md) / [`generated-issues.md`](./generated-issues.md) — 12 个 issue 的实现规划
+- [`auto_run.sh`](./auto_run.sh) — 从 issue 列表自动抽取并执行 phase 的辅助脚本
 
-# 3. Load the bundled CSV + JSON sample data (5 + 4 items, auto-analyzed)
-curl -b cookies.txt -X POST http://localhost:8000/api/import/demo
+---
 
-# 4. Risk-control user can now see 10+ opinion items with sentiment + risk
-curl -b cookies.txt 'http://localhost:8000/api/opinions?limit=20'
+## 十一、可选扩展
 
-# 5. Filter the list to high / severe risk only
-curl -b cookies.txt 'http://localhost:8000/api/opinions?risk_level=high'
-curl -b cookies.txt 'http://localhost:8000/api/opinions?risk_level=severe'
+以下能力在 PRD 中列为选做,当前未实现,可在后续 issue 中追加:
 
-# 6. List the auto-created alerts
-curl -b cookies.txt http://localhost:8000/api/alerts?status=pending
-
-# 7. Confirm the first alert
-curl -b cookies.txt -X POST http://localhost:8000/api/alerts/1/confirm
-
-# 8. Ignore the second alert with a reason
-curl -b cookies.txt -X POST http://localhost:8000/api/alerts/2/ignore \
-  -H 'Content-Type: application/json' \
-  -d '{"reason": "已与企业沟通确认为误报"}'
-
-# 9. Convert the confirmed alert (id=1) into a ticket, then assign
-#    the built-in 'handler' user (their id is stable in the demo DB).
-curl -b cookies.txt -X POST http://localhost:8000/api/tickets/from-alert \
-  -H 'Content-Type: application/json' \
-  -d '{"alert_id": 1, "assignee_id": 3}'
-
-# 10. Login as the handler and submit a handling result.
-curl -c handler.txt -X POST http://localhost:8000/api/auth/login \
-  -H 'Content-Type: application/json' \
-  -d '{"username": "handler", "password": "handler123"}'
-curl -b handler.txt -X POST http://localhost:8000/api/tickets/1/complete \
-  -H 'Content-Type: application/json' \
-  -d '{"handling_result": "已与企业沟通并取得谅解"}'
-
-# 11. Login back as risk-control and archive the completed ticket.
-curl -b cookies.txt -X POST http://localhost:8000/api/tickets/1/archive
-
-# 12. Drill into a single opinion — the response includes the analysis
-#     section (sentiment, score, level, factors, explanation).
-curl -b cookies.txt http://localhost:8000/api/opinions/3 | python3 -m json.tool
-
-# 13. Risk-control queues an Excel report (Phase 8) over the high-risk
-#     items from the demo. The worker runs in the background and the
-#     response returns 201 with the new task id.
-curl -b cookies.txt -X POST http://localhost:8000/api/reports \
-  -H 'Content-Type: application/json' \
-  -d '{"title": "6 月高风险周报", "description": "Phase 8 演示", "risk_level": "high"}'
-
-# 14. Poll the summary until the task is no longer 'pending' / 'generating',
-#     then download the .xlsx. (The bundled demo is small enough that the
-#     worker usually finishes by the time the second request lands.)
-curl -b cookies.txt http://localhost:8000/api/reports/summary
-curl -b cookies.txt -OJ http://localhost:8000/api/reports/1/download
-```
-
-Phases 1–8 together demonstrate the full ingest → analyze → risk →
-alert → ticket → report pipeline. The same loop is also available as
-a single CLI verifier that talks to a live `uvicorn` server over
-HTTP, so a demo audience can watch every step land on a real
-background worker:
-
-```bash
-# In one terminal — leave the dev server running.
-uvicorn app.main:app --reload --port 8000
-
-# In another — walk the whole path with coloured per-step output.
-python scripts/demo_e2e.py --base-url http://localhost:8000
-```
-
-The script is a sibling of `tests/test_e2e_happy_path.py` — the
-test uses the in-process `TestClient` and runs the report worker
-directly for determinism; the script polls `BackgroundTasks` the
-way a real user would, and exits non-zero on any failure.
-
-## What's next
-
-Phases 1–10 of `generated-issues.md` are now landed. The course demo
-covers the full ingest → analyze → risk-score → alert → ticket →
-report → audit loop, and a single test (`tests/test_e2e_happy_path.py`)
-plus a single CLI (`scripts/demo_e2e.py`) prove it end-to-end against
-both the in-process `TestClient` and a live `uvicorn` server. Any
-follow-up work should be driven by new issues in
-`generated-issues.md` rather than by extending the phase list.
+- PDF 报告导出(目前只导出 `.xlsx`)
+- 相似文本归并 / 简单事件聚类
+- Elasticsearch / OpenSearch 全文检索
+- Celery + Redis 任务队列(目前用 FastAPI `BackgroundTasks`)
+- 更多数据源适配器(微博、知乎、抖音、投诉平台等)
+- 报告模板编辑器
