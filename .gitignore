@@ -19,5 +19,9 @@ logs/
 .idea/
 .vscode/
 
+# Agent / tooling workspaces (kept local, not in repo)
+.agents/
+.claude/
+
 # OS
 .DS_Store
