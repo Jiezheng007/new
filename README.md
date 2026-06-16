@@ -70,13 +70,72 @@
 - **数据源管理**:RSS / JSON URL / 内置 `static_demo` 三种类型,支持手动拉取与最近拉取状态展示
 - **数据导入**:CSV / JSON 文件上传,以及一键加载内置演示包
 - **舆情管理**:分页、按关键词/来源/时间/情感/风险等级/分析状态多维筛选
-- **可插拔 NLP**:`NlpProvider` 抽象 + 默认 `KeywordNlpProvider` 离线词典实现,可替换为第三方 API
+- **可插拔 NLP**:`NlpProvider` 抽象 + 两种离线实现(`KeywordNlpProvider` 词典基线 / `JiebaNlpProvider` jieba + HowNet 词典,默认),可通过 `NLP_PROVIDER` 切换
 - **风险评分**:0-100 分综合评分,自动映射到 `低 / 中 / 高 / 严重` 四档,管理员可调阈值
 - **预警生命周期**:高/严重风险自动建 `pending` 预警 → 确认 / 填写原因忽略
 - **工单流转**:已确认预警转工单,四态状态机(待派发 / 处理中 / 已完成 / 已归档)
 - **报告中心**:异步生成三页 Excel(概览 + 汇总 + 明细),支持按风险等级/时间/主体关键词过滤
 - **工作台**:登录首页一屏展示舆情、负面占比、待确认预警、待处理工单、7 日趋势
 - **审计日志**:登录/退出、用户/角色/数据源/规则/预警/工单/报告关键操作全程留痕,审计员可多维过滤
+
+---
+
+## 二.情感分析
+
+系统内置两种 NLP Provider,通过 `NLP_PROVIDER` 环境变量切换,默认 `jieba_nlp`。
+
+| Provider | 算法 | 词典 | 准确率(500 条评测集) | 平均延迟 | 中文分词 | 否定处理 |
+|---|---|---|---|---|---|---|
+| `jieba_nlp`(默认) | 分词 + 词典查极性 + 否定窗口翻转 + 程度副词加权 + 中性死区 | HowNet 简化版 ~600 正 + ~500 负 | **76%**(macro F1 75%) | ~0.1ms(冷启动 ~580ms) | ✅ | ✅ |
+| `keyword_nlp`(基线) | 字符串子串匹配 + 词典加权 | 手写词典 ~37 正 + ~38 负 | 50%(macro F1 49%) | ~0.02ms | ❌(子串歧义) | ❌ |
+
+### 切换 Provider
+
+`.env` 或启动环境变量:
+```bash
+# 使用 jieba (默认)
+NLP_PROVIDER=jieba_nlp
+
+# 切回 keyword 基线
+NLP_PROVIDER=keyword_nlp
+```
+
+切换后需要**重新触发分析**才会生效(已分析的 `AnalysisResult` 行不会被自动重算)。触发方式:
+- 单条: `POST /api/opinions/{id}/analyze`
+- 批量: `POST /api/opinions/analyze-pending`
+
+### 跑评测
+
+```bash
+cd backend
+conda run -n yuqing-test python -m scripts.eval_sentiment --provider all \
+    --output scripts/data/eval_report.json
+```
+
+会输出每个 Provider 的 accuracy / macro-F1 / 3 类 precision-recall / 3x3 confusion matrix / 延迟分布,并给出 jieba 相对 keyword 的提升。报告 JSON 同时落盘便于对比历史。
+
+完整 500 条数据集:`backend/scripts/data/sentiment_eval.jsonl`
+精简 10 条样本(用于无完整数据集场景):`backend/scripts/data/sentiment_eval.sample.jsonl`
+生成数据集:`python scripts/build_eval_dataset.py`
+
+### 回归门
+
+`backend/tests/test_sentiment_eval.py` 标记为 `@pytest.mark.slow`,断言:
+1. jieba 比 keyword 准确率高 ≥ 5 个百分点
+2. jieba 单独准确率 ≥ 65%
+3. 评测脚本端到端可运行、报告结构符合契约
+
+CI 全跑,本地开发 `pytest -m "not slow"` 跳过。
+
+### 添加新 Provider
+
+1. 在 `backend/app/services/nlp/` 新建模块,子类化 `BaseNlpProvider`
+2. 实现 `analyze(text, language) -> NlpResult`
+3. 在 `backend/app/services/nlp/__init__.py:_PROVIDER_REGISTRY` 注册
+4. 在 `NLP_PROVIDER` 文档中列出新名字
+5. 编写单元测试(`test_<your>_provider.py`)和评测回归用例
+
+词典/词库文件放到 `backend/app/services/nlp/data/` 子目录,代码中用 `Path(__file__).parent / "data"` 引用。
 
 ---
 

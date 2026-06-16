@@ -1,0 +1,10 @@
+{"id": "sample-001", "text": "房间非常宽敞,卫生做得很好,前台服务热情,下次还会再来", "label": "positive", "source": "handcrafted", "notes": "hotel review"}
+{"id": "sample-002", "text": "入住后发现房间有异味,空调故障,前台态度冷漠,要求退款", "label": "negative", "source": "handcrafted", "notes": "hotel review"}
+{"id": "sample-003", "text": "公司今日召开年度股东大会,审议年度报告及利润分配方案", "label": "neutral", "source": "handcrafted", "notes": "factual corporate announcement"}
+{"id": "sample-004", "text": "这个产品我不推荐,质量太差,用了三天就坏了", "label": "negative", "source": "edge_case", "notes": "negation: 不推荐"}
+{"id": "sample-005", "text": "公司实现重大突破,新产品获得客户高度好评,业绩大幅增长", "label": "positive", "source": "edge_case", "notes": "重大+突破 should be positive"}
+{"id": "sample-006", "text": "本月无安全事故发生,各项经营指标稳健", "label": "positive", "source": "edge_case", "notes": "无 + 事故 should be positive"}
+{"id": "sample-007", "text": "早餐品种丰富,味道可口,服务员态度友善,推荐入住", "label": "positive", "source": "handcrafted", "notes": "hotel review"}
+{"id": "sample-008", "text": "某公司因涉嫌违规被监管部门通报,要求限期整改", "label": "negative", "source": "handcrafted", "notes": "regulatory action"}
+{"id": "sample-009", "text": "行业报告显示二季度市场需求出现回升,分析师看法不一", "label": "neutral", "source": "handcrafted", "notes": "mixed opinions"}
+{"id": "sample-010", "text": "产品外观漂亮,手感好,但价格偏贵,性价比一般", "label": "neutral", "source": "handcrafted", "notes": "balanced review"}

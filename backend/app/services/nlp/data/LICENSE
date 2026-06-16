@@ -1,0 +1,28 @@
+HowNet Simplified Sentiment Lexicon — License and Attribution
+================================================================
+
+These lexicon files (`hownet_simplified.pos.txt`, `hownet_simplified.neg.txt`)
+are derived from the OpenHowNet project (https://github.com/thunlp/THU-OpenHowNet)
+maintained by the Natural Language Processing Lab at Tsinghua University (THUNLP).
+
+Original work: HowNet / 知网 — Dong Zhendong (董振东) & Dong Qiang (董强).
+OpenHowNet release: CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/).
+
+This curated subset was assembled for the yuqing (舆情监控) backend's
+JiebaNlpProvider. It includes:
+  - a base word list derived from the upstream HowNet simplified sentiment set
+  - domain-specific additions for public-opinion monitoring (financial,
+    regulatory, consumer-protection, environmental, public-safety vocabulary)
+  - filtering of context-ambiguous words whose polarity depends on adjacent
+    tokens (e.g. "重大" excluded; downstream hits like "事故/违规/泄露"
+    carry the negative signal instead)
+
+You are free to share and adapt the lexicon under CC BY 4.0, provided you
+attribute both:
+  1. HowNet (董振东, 董强) and OpenHowNet (THUNLP) for the upstream data;
+  2. this project (yuqing backend) for the curated subset.
+
+NO WARRANTY. The lexicon is provided "as-is"; sentiment labels are heuristic
+and may be wrong for edge cases. The accompanying evaluation pipeline
+(backend/scripts/eval_sentiment.py) should be used to measure accuracy on
+your domain before relying on it.

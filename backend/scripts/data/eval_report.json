@@ -1,0 +1,449 @@
+{
+  "dataset": "D:\\code\\new\\backend\\scripts\\data\\sentiment_eval.jsonl",
+  "limit": null,
+  "language": "zh",
+  "runs": {
+    "keyword_nlp": {
+      "provider": "keyword_nlp",
+      "n": 500,
+      "correct": 257,
+      "skipped": 0,
+      "accuracy": 0.514,
+      "macro_f1": 0.4853357565779133,
+      "per_class": {
+        "positive": {
+          "precision": 0.6513761467889908,
+          "recall": 0.6543778801843319,
+          "f1": 0.6528735632183909,
+          "support": 217
+        },
+        "neutral": {
+          "precision": 0.3317757009345794,
+          "recall": 0.6574074074074074,
+          "f1": 0.4409937888198758,
+          "support": 108
+        },
+        "negative": {
+          "precision": 0.6470588235294118,
+          "recall": 0.25142857142857145,
+          "f1": 0.36213991769547327,
+          "support": 175
+        }
+      },
+      "confusion": {
+        "positive": {
+          "positive": 142,
+          "neutral": 67,
+          "negative": 8
+        },
+        "neutral": {
+          "neutral": 71,
+          "positive": 21,
+          "negative": 16
+        },
+        "negative": {
+          "negative": 44,
+          "positive": 55,
+          "neutral": 76
+        }
+      },
+      "latency_ms": {
+        "avg": 0.018869400024414062,
+        "p50": 0.016300007700920105,
+        "p95": 0.028399983420968056,
+        "p99": 0.037299992982298136,
+        "max": 0.19150000298395753,
+        "min": 0.014999997802078724
+      },
+      "cold_start_ms": 0.17600000137463212,
+      "errors": {},
+      "disagreement_total": 243,
+      "disagreements_sample": [
+        {
+          "id": "pos-m027",
+          "text": "公园景色优美,环境整洁,适合休闲",
+          "expected": "positive",
+          "predicted": "neutral",
+          "confidence": 0.5,
+          "error_message": null
+        },
+        {
+          "id": "edge-020",
+          "text": "公司业绩蒸蒸日上,受到投资者青睐",
+          "expected": "positive",
+          "predicted": "neutral",
+          "confidence": 0.5,
+          "error_message": null
+        },
+        {
+          "id": "pos-m047",
+          "text": "志愿者活动组织有序,参与者热情高,值得参与",
+          "expected": "positive",
+          "predicted": "neutral",
+          "confidence": 0.5,
+          "error_message": null
+        },
+        {
+          "id": "pos-m009",
+          "text": "新店开业活动丰富,优惠力度大,值得一去",
+          "expected": "positive",
+          "predicted": "neutral",
+          "confidence": 0.5,
+          "error_message": null
+        },
+        {
+          "id": "pos-c691",
+          "text": "公司快速发展,完美回报,倍感舒适股东",
+          "expected": "positive",
+          "predicted": "neutral",
+          "confidence": 0.5,
+          "error_message": null
+        },
+        {
+          "id": "neg-m023",
+          "text": "咖啡馆环境嘈杂,咖啡难喝,不推荐",
+          "expected": "negative",
+          "predicted": "positive",
+          "confidence": 0.6,
+          "error_message": null
+        },
+        {
+          "id": "neg-m010",
+          "text": "App界面丑陋,功能缺失,使用卡顿",
+          "expected": "negative",
+          "predicted": "neutral",
+          "confidence": 0.5,
+          "error_message": null
+        },
+        {
+          "id": "edge-042",
+          "text": "公司召开新闻发布会,澄清市场传闻",
+          "expected": "neutral",
+          "predicted": "positive",
+          "confidence": 0.6,
+          "error_message": null
+        },
+        {
+          "id": "neg-h197",
+          "text": "入住多次,售后态度差,功能老化,不推荐",
+          "expected": "negative",
+          "predicted": "positive",
+          "confidence": 0.6,
+          "error_message": null
+        },
+        {
+          "id": "pos-p746",
+          "text": "做工精细,印象深刻喜欢,会回购",
+          "expected": "positive",
+          "predicted": "neutral",
+          "confidence": 0.5,
+          "error_message": null
+        },
+        {
+          "id": "pos-c388",
+          "text": "公司快速发展,很好投入,倍感舒适研发实力",
+          "expected": "positive",
+          "predicted": "neutral",
+          "confidence": 0.5,
+          "error_message": null
+        },
+        {
+          "id": "neg-m053",
+          "text": "医疗改革成效差,患者不满,不推荐",
+          "expected": "negative",
+          "predicted": "neutral",
+          "confidence": 0.5,
+          "error_message": null
+        },
+        {
+          "id": "neg-p731",
+          "text": "产品差,配套缺失,售后服务差",
+          "expected": "negative",
+          "predicted": "neutral",
+          "confidence": 0.5,
+          "error_message": null
+        },
+        {
+          "id": "pos-m024",
+          "text": "书店环境安静,书籍种类丰富,值得一去",
+          "expected": "positive",
+          "predicted": "neutral",
+          "confidence": 0.5,
+          "error_message": null
+        },
+        {
+          "id": "neg-h668",
+          "text": "房间采光差,服务员态度恶劣,早餐难吃",
+          "expected": "negative",
+          "predicted": "neutral",
+          "confidence": 0.5,
+          "error_message": null
+        },
+        {
+          "id": "pos-p720",
+          "text": "产品干净,硬件完善,使用体验好",
+          "expected": "positive",
+          "predicted": "neutral",
+          "confidence": 0.5,
+          "error_message": null
+        },
+        {
+          "id": "neg-m020",
+          "text": "司机师傅驾驶不稳,服务态度差,不推荐",
+          "expected": "negative",
+          "predicted": "positive",
+          "confidence": 0.6,
+          "error_message": null
+        },
+        {
+          "id": "edge-049",
+          "text": "监管部门发布行业指引,要求加强合规管理",
+          "expected": "neutral",
+          "predicted": "positive",
+          "confidence": 0.7,
+          "error_message": null
+        },
+        {
+          "id": "neu-n094",
+          "text": "公司今日发布公告,披露股权激励计划进展",
+          "expected": "neutral",
+          "predicted": "positive",
+          "confidence": 0.6,
+          "error_message": null
+        },
+        {
+          "id": "neg-c929",
+          "text": "公司陷入困境,显著衰退,引起市场份额萎缩",
+          "expected": "negative",
+          "predicted": "neutral",
+          "confidence": 0.5,
+          "error_message": null
+        }
+      ]
+    },
+    "jieba_nlp": {
+      "provider": "jieba_nlp",
+      "n": 500,
+      "correct": 386,
+      "skipped": 0,
+      "accuracy": 0.772,
+      "macro_f1": 0.7544728513094672,
+      "per_class": {
+        "positive": {
+          "precision": 0.9121951219512195,
+          "recall": 0.8617511520737328,
+          "f1": 0.8862559241706162,
+          "support": 217
+        },
+        "neutral": {
+          "precision": 0.4972375690607735,
+          "recall": 0.8333333333333334,
+          "f1": 0.6228373702422145,
+          "support": 108
+        },
+        "negative": {
+          "precision": 0.956140350877193,
+          "recall": 0.6228571428571429,
+          "f1": 0.754325259515571,
+          "support": 175
+        }
+      },
+      "confusion": {
+        "positive": {
+          "positive": 187,
+          "neutral": 29,
+          "negative": 1
+        },
+        "neutral": {
+          "neutral": 90,
+          "positive": 14,
+          "negative": 4
+        },
+        "negative": {
+          "negative": 109,
+          "neutral": 62,
+          "positive": 4
+        }
+      },
+      "latency_ms": {
+        "avg": 1.2922155994456261,
+        "p50": 0.051200040616095066,
+        "p95": 0.11419999646022916,
+        "p99": 0.222100003156811,
+        "max": 615.6680000131018,
+        "min": 0.021700048819184303
+      },
+      "cold_start_ms": 615.6680000131018,
+      "errors": {},
+      "disagreement_total": 114,
+      "disagreements_sample": [
+        {
+          "id": "pos-m027",
+          "text": "公园景色优美,环境整洁,适合休闲",
+          "expected": "positive",
+          "predicted": "neutral",
+          "confidence": 0.5,
+          "error_message": null
+        },
+        {
+          "id": "neg-m010",
+          "text": "App界面丑陋,功能缺失,使用卡顿",
+          "expected": "negative",
+          "predicted": "neutral",
+          "confidence": 0.5,
+          "error_message": null
+        },
+        {
+          "id": "neg-p731",
+          "text": "产品差,配套缺失,售后服务差",
+          "expected": "negative",
+          "predicted": "neutral",
+          "confidence": 0.5,
+          "error_message": null
+        },
+        {
+          "id": "pos-m024",
+          "text": "书店环境安静,书籍种类丰富,值得一去",
+          "expected": "positive",
+          "predicted": "neutral",
+          "confidence": 0.5,
+          "error_message": null
+        },
+        {
+          "id": "neg-h668",
+          "text": "房间采光差,服务员态度恶劣,早餐难吃",
+          "expected": "negative",
+          "predicted": "neutral",
+          "confidence": 0.5,
+          "error_message": null
+        },
+        {
+          "id": "neu-n024",
+          "text": "公司召开投资者交流会,介绍公司战略规划",
+          "expected": "neutral",
+          "predicted": "positive",
+          "confidence": 0.6,
+          "error_message": null
+        },
+        {
+          "id": "pos-h538",
+          "text": "房间景观整洁,前台令人满意,早餐令人满意",
+          "expected": "positive",
+          "predicted": "neutral",
+          "confidence": 0.5,
+          "error_message": null
+        },
+        {
+          "id": "edge-035",
+          "text": "公司完成整改,恢复经营",
+          "expected": "positive",
+          "predicted": "negative",
+          "confidence": 0.6,
+          "error_message": null
+        },
+        {
+          "id": "neg-m054",
+          "text": "环保政策落实差,空气污染严重,不推荐",
+          "expected": "negative",
+          "predicted": "neutral",
+          "confidence": 0.5800000000000001,
+          "error_message": null
+        },
+        {
+          "id": "neg-m052",
+          "text": "教育改革推进缓慢,学生压力大,不推荐",
+          "expected": "negative",
+          "predicted": "neutral",
+          "confidence": 0.52,
+          "error_message": null
+        },
+        {
+          "id": "neg-m060",
+          "text": "惠企政策落实差,企业发展环境差,不推荐",
+          "expected": "negative",
+          "predicted": "neutral",
+          "confidence": 0.52,
+          "error_message": null
+        },
+        {
+          "id": "neg-h502",
+          "text": "老旧酒店,装修过时,客服冷漠",
+          "expected": "negative",
+          "predicted": "neutral",
+          "confidence": 0.5,
+          "error_message": null
+        },
+        {
+          "id": "neu-n106",
+          "text": "公司召开落实会议,贯彻上级文件精神",
+          "expected": "neutral",
+          "predicted": "positive",
+          "confidence": 0.6,
+          "error_message": null
+        },
+        {
+          "id": "neg-h303",
+          "text": "设施缺失,客服推诿,入住体验差",
+          "expected": "negative",
+          "predicted": "neutral",
+          "confidence": 0.5,
+          "error_message": null
+        },
+        {
+          "id": "neg-m009",
+          "text": "新店开业活动单调,优惠力度小,不值得去",
+          "expected": "negative",
+          "predicted": "positive",
+          "confidence": 0.6,
+          "error_message": null
+        },
+        {
+          "id": "neg-m056",
+          "text": "社区治理成效差,居民幸福感低,不推荐",
+          "expected": "negative",
+          "predicted": "neutral",
+          "confidence": 0.52,
+          "error_message": null
+        },
+        {
+          "id": "neg-m057",
+          "text": "基层工作推进缓慢,群众满意度低,不推荐",
+          "expected": "negative",
+          "predicted": "neutral",
+          "confidence": 0.52,
+          "error_message": null
+        },
+        {
+          "id": "neu-n016",
+          "text": "监管部门发布行业风险提示,提醒投资者注意风险",
+          "expected": "neutral",
+          "predicted": "negative",
+          "confidence": 0.9,
+          "error_message": null
+        },
+        {
+          "id": "pos-c296",
+          "text": "公司治理漂亮,超出预期合规,经营超出预期",
+          "expected": "positive",
+          "predicted": "neutral",
+          "confidence": 0.5,
+          "error_message": null
+        },
+        {
+          "id": "edge-045",
+          "text": "公司股价异动,公司回应称无重大事项",
+          "expected": "positive",
+          "predicted": "neutral",
+          "confidence": 0.5,
+          "error_message": null
+        }
+      ]
+    }
+  },
+  "comparison": {
+    "accuracy_uplift": 0.258,
+    "macro_f1_uplift": 0.2691370947315539,
+    "latency_p95_ratio": 4.021128983332924,
+    "verdict": "jieba_better"
+  }
+}

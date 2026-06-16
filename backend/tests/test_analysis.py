@@ -88,10 +88,26 @@ def _seed_static_demo(client):
 # ---------- NLP provider ----------
 
 def test_get_nlp_provider_default_is_keyword():
+    """Backwards-compatible name; the default provider switched from
+    keyword_nlp to jieba_nlp in Phase 5. This test now verifies that
+    the legacy name still resolves (since the keyword provider is still
+    registered), but the *active* default is jieba_nlp (covered by the
+    test in tests/test_jieba_provider.py::test_get_nlp_provider_default_is_jieba)."""
     reset_nlp_provider_cache()
-    provider = get_nlp_provider()
-    assert isinstance(provider, KeywordNlpProvider)
-    assert provider.name == "keyword_nlp"
+    # Force the keyword provider explicitly so the test name still holds.
+    import os
+    os.environ["NLP_PROVIDER"] = "keyword_nlp"
+    from app.core.config import get_settings
+    get_settings.cache_clear()
+    reset_nlp_provider_cache()
+    try:
+        provider = get_nlp_provider()
+        assert isinstance(provider, KeywordNlpProvider)
+        assert provider.name == "keyword_nlp"
+    finally:
+        os.environ.pop("NLP_PROVIDER", None)
+        get_settings.cache_clear()
+        reset_nlp_provider_cache()
 
 
 def test_keyword_provider_positive():
