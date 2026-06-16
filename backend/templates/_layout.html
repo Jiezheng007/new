@@ -6,7 +6,7 @@
   <title>{{ page_title }} · 舆情风控信号台</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="/static/app.css?v=blue-console-v2">
+  <link rel="stylesheet" href="/static/app.css?v=2026-06-16-alert-actions">
 </head>
 <body class="app-body">
   <aside class="sidebar">
@@ -47,11 +47,11 @@
         <span class="role-pill"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg> {{ user.role_name }}</span>
       </div>
     </header>
+    <script>window.__userRole = {{ user.role | tojson }};</script>
     <section class="content">
       {% block content %}{% endblock %}
     </section>
   </main>
-  <script>window.__userRole = {{ user.role | tojson }};</script>
   <script src="/static/app.js?v=2026-06-10-modal"></script>
 </body>
 </html>
