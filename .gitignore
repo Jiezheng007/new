@@ -11,9 +11,13 @@ __pycache__/
 *.sqlite3
 yuqing.db
 backend/yuqing.db
+*.db-shm
+*.db-wal
 data/
 reports_storage/
 logs/
+mock_data_*.json
+mock_extreme_data.json
 
 # IDE
 .idea/
