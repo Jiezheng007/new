@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from app.db import session as session_module
+from app.models.alert import Alert
 from app.models.audit import AuditLog
 from app.models.datasource import DataSource, OpinionItem
 
@@ -125,6 +126,60 @@ def test_create_weibo_datasource_rejects_missing_url(client):
         json={"code": "weibo_nourl", "name": "微博无地址", "source_type": "weibo"},
     )
     assert res.status_code == 422
+
+
+def test_create_news_search_datasource_uses_query_not_url(client):
+    client.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
+    res = client.post(
+        "/api/datasources",
+        json={
+            "code": "rock_news",
+            "name": "洛克王国新闻监控",
+            "source_type": "news_search",
+            "query": "洛克王国 OR 洛克王国手游",
+            "fetch_interval_minutes": 30,
+            "max_items_per_fetch": 3,
+            "config": {"language": "zh", "region": "CN"},
+            "description": "关键词驱动新闻监控",
+        },
+    )
+    assert res.status_code == 201, res.text
+    body = res.json()
+    assert body["source_type"] == "news_search"
+    assert body["query"] == "洛克王国 OR 洛克王国手游"
+    assert body["url"] == ""
+    assert body["fetch_interval_minutes"] == 30
+    assert body["max_items_per_fetch"] == 3
+    assert body["config"]["region"] == "CN"
+
+
+def test_create_news_search_datasource_rejects_missing_query(client):
+    client.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
+    res = client.post(
+        "/api/datasources",
+        json={"code": "news_no_query", "name": "无关键词", "source_type": "news_search"},
+    )
+    assert res.status_code == 422
+
+
+def test_test_news_search_datasource_returns_samples(client):
+    client.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
+    res = client.post(
+        "/api/datasources/test",
+        json={
+            "source_type": "news_search",
+            "query": "洛克王国",
+            "max_items_per_fetch": 2,
+            "config": {"language": "zh", "region": "CN"},
+        },
+    )
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["ok"] is True
+    assert body["sample_count"] == 2
+    assert len(body["samples"]) == 2
+    assert "洛克王国" in body["samples"][0]["title"]
+    assert body["message"] == "测试成功,可抓取 2 条样例"
 
 
 def test_create_datasource_blocks_non_admin(client):
@@ -363,6 +418,80 @@ def test_manual_fetch_weibo_json_persists_and_dedupes(monkeypatch, client):
     assert body["duplicate"] == 2
 
 
+def test_manual_fetch_news_search_persists_keyword_news(client):
+    client.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
+    create = client.post(
+        "/api/datasources",
+        json={
+            "code": "keyword_news_fetch",
+            "name": "关键词新闻抓取",
+            "source_type": "news_search",
+            "query": "洛克王国",
+            "max_items_per_fetch": 2,
+        },
+    )
+    assert create.status_code == 201, create.text
+    source_id = create.json()["id"]
+
+    first = client.post(f"/api/datasources/{source_id}/fetch")
+    assert first.status_code == 200, first.text
+    assert first.json()["accepted"] == 2
+
+    db = Session(_engine())
+    try:
+        items = (
+            db.query(OpinionItem)
+            .filter(OpinionItem.source_id == source_id)
+            .order_by(OpinionItem.id)
+            .all()
+        )
+        assert len(items) == 2
+        assert items[0].source_type == "news_search"
+        assert "洛克王国" in items[0].title
+        assert items[0].url.startswith("https://news.example.test/")
+        assert "mock_news_search" in items[0].raw_payload
+    finally:
+        db.close()
+
+    second = client.post(f"/api/datasources/{source_id}/fetch")
+    assert second.status_code == 200, second.text
+    body = second.json()
+    assert body["accepted"] == 0
+    assert body["duplicate"] == 2
+
+
+def test_manual_fetch_news_search_creates_pending_alert_for_high_risk_news(client):
+    client.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
+    create = client.post(
+        "/api/datasources",
+        json={
+            "code": "keyword_news_alert",
+            "name": "关键词新闻预警",
+            "source_type": "news_search",
+            "query": "洛克王国",
+            "max_items_per_fetch": 2,
+        },
+    )
+    assert create.status_code == 201, create.text
+    source_id = create.json()["id"]
+
+    fetch = client.post(f"/api/datasources/{source_id}/fetch")
+    assert fetch.status_code == 200, fetch.text
+
+    db = Session(_engine())
+    try:
+        alerts = (
+            db.query(Alert)
+            .join(OpinionItem, OpinionItem.id == Alert.opinion_item_id)
+            .filter(OpinionItem.source_id == source_id)
+            .all()
+        )
+        assert alerts
+        assert any(a.status == "pending" and a.risk_level in {"high", "severe"} for a in alerts)
+    finally:
+        db.close()
+
+
 # ---------- opinion list/detail ----------
 
 def _seed_demo_items(client):
@@ -456,6 +585,8 @@ def test_datasources_page_renders_for_admin(client):
     assert res.status_code == 200
     body = res.text
     assert "数据源" in body
+    assert "关键词监控" in body
+    assert "测试抓取" in body
 
 
 def test_datasources_page_403_for_viewer(client):

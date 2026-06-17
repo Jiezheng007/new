@@ -7,6 +7,7 @@ cannot drift apart. Every state change writes an audit row.
 """
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -20,10 +21,14 @@ from app.models.user import User
 from app.schemas.datasources import (
     DataSourceCreate,
     DataSourceOut,
+    DataSourceTestRequest,
+    DataSourceTestResult,
+    DataSourceTestSample,
     DataSourceUpdate,
     FetchResult,
 )
 from app.services.audit import get_client_ip, record_audit
+from app.services.connectors import ConnectorError, SOURCE_TYPE_NEWS_SEARCH, get_connector
 from app.services.datasource_fetch import ORIGIN_MANUAL, fetch_datasource
 
 
@@ -46,6 +51,10 @@ def _serialize(row: DataSource) -> dict[str, Any]:
         "name": row.name,
         "source_type": row.source_type,
         "url": row.url,
+        "query": row.query,
+        "fetch_interval_minutes": row.fetch_interval_minutes,
+        "max_items_per_fetch": row.max_items_per_fetch,
+        "config": _loads_config(row.config_json),
         "weight": row.weight,
         "is_enabled": row.is_enabled,
         "description": row.description,
@@ -93,7 +102,11 @@ def create_datasource(
         code=payload.code,
         name=payload.name,
         source_type=payload.source_type,
-        url=payload.url,
+        url=payload.url.strip(),
+        query=payload.query.strip(),
+        fetch_interval_minutes=payload.fetch_interval_minutes,
+        max_items_per_fetch=payload.max_items_per_fetch,
+        config_json=_dumps_config(payload.config),
         weight=payload.weight,
         is_enabled=payload.is_enabled,
         description=payload.description,
@@ -107,12 +120,62 @@ def create_datasource(
         target_type="datasource",
         target_id=str(row.id),
         result="success",
-        detail={"code": row.code, "source_type": row.source_type, "weight": row.weight, "is_enabled": row.is_enabled},
+        detail={
+            "code": row.code,
+            "source_type": row.source_type,
+            "query": row.query,
+            "weight": row.weight,
+            "is_enabled": row.is_enabled,
+        },
         ip_address=ip,
     )
     db.commit()
     db.refresh(row)
     return DataSourceOut(**_serialize(row))
+
+
+@router.post("/test", response_model=DataSourceTestResult)
+def test_datasource_config(
+    payload: DataSourceTestRequest,
+    db: Session = Depends(get_db),
+    _: User = Depends(_require_admin),
+) -> DataSourceTestResult:
+    source = DataSource(
+        code="__test__",
+        name="test",
+        source_type=payload.source_type,
+        url=payload.url.strip(),
+        query=payload.query.strip(),
+        max_items_per_fetch=payload.max_items_per_fetch,
+        config_json=_dumps_config(payload.config),
+    )
+    try:
+        records = get_connector(source.source_type).fetch(source)
+    except ConnectorError as e:
+        return DataSourceTestResult(
+            ok=False,
+            sample_count=0,
+            samples=[],
+            error_code="fetch_failed",
+            message=_friendly_fetch_error(payload.source_type, str(e)),
+        )
+
+    samples = [
+        DataSourceTestSample(
+            title=r.title,
+            content=r.content,
+            url=r.url,
+            author=r.author,
+            published_at=r.published_at,
+        )
+        for r in records[: payload.max_items_per_fetch]
+    ]
+    return DataSourceTestResult(
+        ok=True,
+        sample_count=len(samples),
+        samples=samples,
+        message=f"测试成功,可抓取 {len(samples)} 条样例",
+    )
 
 
 @router.get("/{source_id}", response_model=DataSourceOut)
@@ -153,6 +216,28 @@ def update_datasource(
         after["url"] = payload.url
         changes["url"] = payload.url
         row.url = payload.url
+    if payload.query is not None and payload.query != row.query:
+        before["query"] = row.query
+        after["query"] = payload.query
+        changes["query"] = payload.query
+        row.query = payload.query
+    if payload.fetch_interval_minutes is not None and payload.fetch_interval_minutes != row.fetch_interval_minutes:
+        before["fetch_interval_minutes"] = row.fetch_interval_minutes
+        after["fetch_interval_minutes"] = payload.fetch_interval_minutes
+        changes["fetch_interval_minutes"] = payload.fetch_interval_minutes
+        row.fetch_interval_minutes = payload.fetch_interval_minutes
+    if payload.max_items_per_fetch is not None and payload.max_items_per_fetch != row.max_items_per_fetch:
+        before["max_items_per_fetch"] = row.max_items_per_fetch
+        after["max_items_per_fetch"] = payload.max_items_per_fetch
+        changes["max_items_per_fetch"] = payload.max_items_per_fetch
+        row.max_items_per_fetch = payload.max_items_per_fetch
+    if payload.config is not None:
+        config_json = _dumps_config(payload.config)
+        if config_json != row.config_json:
+            before["config"] = _loads_config(row.config_json)
+            after["config"] = payload.config
+            changes["config"] = payload.config
+            row.config_json = config_json
     if payload.weight is not None and payload.weight != row.weight:
         before["weight"] = row.weight
         after["weight"] = payload.weight
@@ -244,3 +329,25 @@ def manual_fetch(
         message=outcome.message,
         fetched_at=source.latest_fetch_at,
     )
+
+
+def _dumps_config(config: dict[str, Any]) -> str:
+    return json.dumps(config or {}, ensure_ascii=False, sort_keys=True)
+
+
+def _loads_config(config_json: str) -> dict[str, Any]:
+    try:
+        value = json.loads(config_json or "{}")
+    except json.JSONDecodeError:
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
+def _friendly_fetch_error(source_type: str, message: str) -> str:
+    if source_type == SOURCE_TYPE_NEWS_SEARCH:
+        return message
+    if source_type == "rss" and "404" in message:
+        return "该 RSS 地址返回 404,可能已失效或填写错误。请更换有效 RSS 地址,或使用关键词新闻监控。"
+    if source_type == "weibo" or "Weibo" in message:
+        return "该微博地址无法直接抓取。当前仅支持可公开访问、返回微博-like JSON 的接口;微博官方 OAuth API 或公开页面不在第一阶段支持范围内。"
+    return message

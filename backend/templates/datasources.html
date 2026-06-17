@@ -4,7 +4,7 @@
     <section class="panel">
       <header class="panel-header">
         <h2>新增数据源</h2>
-        <p class="muted small">支持 RSS、JSON URL、微博、内置静态演示等类型。系统管理员可新增、修改、抓取与停用。</p>
+        <p class="muted small">默认使用关键词监控获取新闻舆情;RSS、JSON URL、微博 JSON 作为高级配置保留。</p>
       </header>
       <form id="dsCreateForm" class="form-grid" autocomplete="off">
         <label>
@@ -18,9 +18,10 @@
         <label>
           <span>类型</span>
           <select id="ds_source_type" name="source_type" required>
+            <option value="news_search" selected>关键词监控 / 新闻搜索</option>
             <option value="rss">RSS / Atom</option>
             <option value="json_url">JSON URL</option>
-            <option value="weibo">微博</option>
+            <option value="weibo">微博 JSON</option>
             <option value="static_demo">内置演示</option>
           </select>
         </label>
@@ -29,8 +30,25 @@
           <input id="ds_weight" name="weight" type="number" min="0" max="10" step="0.1" value="1.0">
         </label>
         <label class="full">
-          <span>URL (rss / json_url / weibo 必填)</span>
+          <span>关键词 (关键词监控必填)</span>
+          <input id="ds_query" name="query" type="text" maxlength="1024" placeholder="例如: 洛克王国, 洛克王国手游, 洛克王国下架">
+        </label>
+        <label>
+          <span>抓取频率(分钟)</span>
+          <input id="ds_fetch_interval_minutes" name="fetch_interval_minutes" type="number" min="5" max="1440" step="5" value="60">
+        </label>
+        <label>
+          <span>每次最多抓取</span>
+          <input id="ds_max_items_per_fetch" name="max_items_per_fetch" type="number" min="1" max="100" step="1" value="50">
+        </label>
+        <label class="full">
+          <span>高级 URL (RSS / JSON URL / 微博 JSON 必填)</span>
           <input id="ds_url" name="url" type="text" maxlength="512" placeholder="https://...">
+          <small class="muted">普通用户建议使用关键词监控;不要填写需要登录、验证码或 OAuth 鉴权的平台地址。</small>
+        </label>
+        <label class="full">
+          <span>高级配置 JSON</span>
+          <input id="ds_config" name="config" type="text" maxlength="512" placeholder='{"language":"zh","region":"CN"}'>
         </label>
         <label class="full">
           <span>描述</span>
@@ -41,6 +59,7 @@
           <span>启用</span>
         </label>
         <div class="form-actions">
+          <button type="button" id="dsTestBtn">测试抓取</button>
           <button type="submit" class="primary">新增数据源</button>
           <p id="dsCreateStatus" class="status"></p>
         </div>
@@ -60,6 +79,7 @@
               <th>编码</th>
               <th>名称</th>
               <th>类型</th>
+              <th>关键词</th>
               <th>权重</th>
               <th>状态</th>
               <th>最近抓取</th>
@@ -68,7 +88,7 @@
             </tr>
           </thead>
           <tbody id="dsTbody">
-            <tr><td colspan="9" class="muted">加载中...</td></tr>
+            <tr><td colspan="10" class="muted">加载中...</td></tr>
           </tbody>
         </table>
       </div>

@@ -1,6 +1,7 @@
 """Database initialization: create tables, seed roles, seed baseline risk rules and demo sources, create bootstrap admin and demo users."""
 from __future__ import annotations
 
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -90,6 +91,7 @@ def init_db() -> None:
     from app.models import audit, datasource, rule, user  # noqa: F401 - ensure model registration
 
     Base.metadata.create_all(bind=engine)
+    _ensure_datasource_keyword_columns()
     with Session(engine) as db:
         _seed_roles(db)
         db.commit()
@@ -107,6 +109,28 @@ def init_db() -> None:
         db.commit()
         _seed_demo_users(db)
         db.commit()
+
+
+def _ensure_datasource_keyword_columns() -> None:
+    """Add keyword-monitoring columns for existing SQLite databases.
+
+    This project does not use Alembic. ``create_all`` creates the columns for
+    fresh databases, but existing local demo databases need small additive
+    migrations so the app can start after a model change.
+    """
+    if not str(engine.url).startswith("sqlite"):
+        return
+    wanted = {
+        "query": "TEXT NOT NULL DEFAULT ''",
+        "fetch_interval_minutes": "INTEGER NOT NULL DEFAULT 60",
+        "max_items_per_fetch": "INTEGER NOT NULL DEFAULT 50",
+        "config_json": "TEXT NOT NULL DEFAULT '{}'",
+    }
+    with engine.begin() as conn:
+        existing = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(data_sources)")}
+        for column, ddl in wanted.items():
+            if column not in existing:
+                conn.execute(text(f"ALTER TABLE data_sources ADD COLUMN {column} {ddl}"))
 
 
 def _seed_roles(db: Session) -> None:

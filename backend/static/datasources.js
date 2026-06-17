@@ -31,10 +31,34 @@
 
   const state = { sources: [] };
 
+  const readConfig = () => {
+    const raw = document.getElementById("ds_config").value.trim();
+    if (!raw) return {};
+    try {
+      return JSON.parse(raw);
+    } catch (e) {
+      throw new Error("高级配置 JSON 格式不正确");
+    }
+  };
+
+  const buildPayload = () => ({
+    code: document.getElementById("ds_code").value.trim(),
+    name: document.getElementById("ds_name").value.trim(),
+    source_type: document.getElementById("ds_source_type").value,
+    url: document.getElementById("ds_url").value.trim(),
+    query: document.getElementById("ds_query").value.trim(),
+    fetch_interval_minutes: parseInt(document.getElementById("ds_fetch_interval_minutes").value || "60", 10),
+    max_items_per_fetch: parseInt(document.getElementById("ds_max_items_per_fetch").value || "50", 10),
+    config: readConfig(),
+    weight: parseFloat(document.getElementById("ds_weight").value || "1.0"),
+    is_enabled: document.getElementById("ds_is_enabled").checked,
+    description: document.getElementById("ds_description").value.trim(),
+  });
+
   const renderTable = () => {
     const tbody = document.getElementById("dsTbody");
     if (!state.sources.length) {
-      tbody.innerHTML = `<tr><td colspan="9" class="muted">暂无数据源</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="10" class="muted">暂无数据源</td></tr>`;
       return;
     }
     tbody.innerHTML = "";
@@ -44,6 +68,7 @@
       tr.appendChild(td(s.code));
       tr.appendChild(td(s.name));
       tr.appendChild(td(s.source_type));
+      tr.appendChild(td(s.query || "-"));
       tr.appendChild(td(s.weight));
       const statusCell = document.createElement("td");
       const pill = document.createElement("span");
@@ -89,15 +114,13 @@
     event.preventDefault();
     const status = document.getElementById("dsCreateStatus");
     setStatus(status, "");
-    const payload = {
-      code: document.getElementById("ds_code").value.trim(),
-      name: document.getElementById("ds_name").value.trim(),
-      source_type: document.getElementById("ds_source_type").value,
-      url: document.getElementById("ds_url").value.trim(),
-      weight: parseFloat(document.getElementById("ds_weight").value || "1.0"),
-      is_enabled: document.getElementById("ds_is_enabled").checked,
-      description: document.getElementById("ds_description").value.trim(),
-    };
+    let payload;
+    try {
+      payload = buildPayload();
+    } catch (e) {
+      setStatus(status, e.message || "表单配置不正确", true);
+      return;
+    }
     const res = await csrfSafeFetch("/api/datasources", {
       method: "POST",
       body: JSON.stringify(payload),
@@ -111,7 +134,38 @@
     document.getElementById("dsCreateForm").reset();
     document.getElementById("ds_is_enabled").checked = true;
     document.getElementById("ds_weight").value = "1.0";
+    document.getElementById("ds_fetch_interval_minutes").value = "60";
+    document.getElementById("ds_max_items_per_fetch").value = "50";
     await loadAll();
+  };
+
+  const testConfig = async () => {
+    const status = document.getElementById("dsCreateStatus");
+    setStatus(status, "");
+    let payload;
+    try {
+      payload = buildPayload();
+    } catch (e) {
+      setStatus(status, e.message || "表单配置不正确", true);
+      return;
+    }
+    const res = await csrfSafeFetch("/api/datasources/test", {
+      method: "POST",
+      body: JSON.stringify({
+        source_type: payload.source_type,
+        url: payload.url,
+        query: payload.query,
+        max_items_per_fetch: Math.min(payload.max_items_per_fetch || 5, 5),
+        config: payload.config,
+      }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok || body.ok === false) {
+      setStatus(status, (body && (body.message || body.detail)) || "测试抓取失败", true);
+      return;
+    }
+    const firstTitle = body.samples && body.samples[0] ? `: ${body.samples[0].title}` : "";
+    setStatus(status, `${body.message}${firstTitle}`, false);
   };
 
   const triggerFetch = async (s) => {
@@ -163,6 +217,7 @@
 
   document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("dsCreateForm").addEventListener("submit", submitCreate);
+    document.getElementById("dsTestBtn").addEventListener("click", testConfig);
     loadAll();
   });
 })();

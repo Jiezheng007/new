@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     scheduler_enabled: bool = True
     scheduler_interval_seconds: int = 300
     scheduler_fetch_batch_limit: int = 20
+    # Keyword-driven news search provider. "mock" is deterministic and safe
+    # for local demos/tests; real deployments can add compliant API providers.
+    news_search_provider: str = "mock"
 
 
 @lru_cache
