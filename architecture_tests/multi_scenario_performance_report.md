@@ -1,69 +1,52 @@
-# 舆情风控系统 - 体系结构性能压测综合报告
+# 舆情风控系统 - 性能压测多场景对比报告
 
-## 第一部分：读场景并发压测 (并发度：100 Users)
-> **压测环境说明**：在后台持续高频写入引发 SQLite 读写锁竞争的恶劣环境下，测定前端核心查询模块的性能衰减。场景变量为**底层数据库存量数据规模**。
+> **压测环境说明**：在所有压测场景下，系统后台均有一条常驻线程在以极高频率执行“数据源抓取”入库操作，以此引发底层的 SQLite 读写锁竞争（Read-Write Collision）。
 
-### 【场景 1.1】底层数据规模：10,000 条
-#### 【测试的模块 1】工作台轮询 (GET /api/dashboard/summary)
-* **指标一：响应时间 (Response Time)**：Avg 541.65 ms, Max 1227 ms
-* **指标二：吞吐量 (Throughput)**：35.12 RPS
+## 【场景1】数据规模：10000条数据
+
+### 【测试的模块1】工作台轮询 (GET /api/dashboard/summary)
+* **指标一：响应时间 (Response Time)**：Avg 34001.74 ms, Max 37009 ms
+* **指标二：吞吐量 (Throughput)**：0.84 RPS
 * **指标三：并发用户数 (Concurrency)**：100
 * **指标四：错误率 (Error Rate)**：0.00%
 
-#### 【测试的模块 2】舆情交叉检索 (GET /api/opinions)
-* **指标一：响应时间 (Response Time)**：Avg 281.23 ms, Max 926 ms
-* **指标二：吞吐量 (Throughput)**：17.66 RPS
-* **指标三：并发用户数 (Concurrency)**：100
-* **指标四：错误率 (Error Rate)**：0.00%
-
----
-
-### 【场景 1.2】底层数据规模：100,000 条
-#### 【测试的模块 1】工作台轮询 (GET /api/dashboard/summary)
-* **指标一：响应时间 (Response Time)**：Avg 552.25 ms, Max 1221 ms
-* **指标二：吞吐量 (Throughput)**：35.10 RPS
-* **指标三：并发用户数 (Concurrency)**：100
-* **指标四：错误率 (Error Rate)**：0.00%
-
-#### 【测试的模块 2】舆情交叉检索 (GET /api/opinions)
-* **指标一：响应时间 (Response Time)**：Avg 275.76 ms, Max 977 ms
-* **指标二：吞吐量 (Throughput)**：17.60 RPS
+### 【测试的模块2】舆情交叉检索 (GET /api/opinions)
+* **指标一：响应时间 (Response Time)**：Avg 9074.10 ms, Max 29460 ms
+* **指标二：吞吐量 (Throughput)**：4.46 RPS
 * **指标三：并发用户数 (Concurrency)**：100
 * **指标四：错误率 (Error Rate)**：0.00%
 
 ---
 
-### 【场景 1.3】底层数据规模：200,000 条
-#### 【测试的模块 1】工作台轮询 (GET /api/dashboard/summary)
-* **指标一：响应时间 (Response Time)**：Avg 558.93 ms, Max 1458 ms
-* **指标二：吞吐量 (Throughput)**：35.78 RPS
+## 【场景2】数据规模：100000条数据
+
+### 【测试的模块1】工作台轮询 (GET /api/dashboard/summary)
+* **指标一：响应时间 (Response Time)**：Avg 35754.88 ms, Max 37956 ms
+* **指标二：吞吐量 (Throughput)**：0.71 RPS
 * **指标三：并发用户数 (Concurrency)**：100
 * **指标四：错误率 (Error Rate)**：0.00%
 
-#### 【测试的模块 2】舆情交叉检索 (GET /api/opinions)
-* **指标一：响应时间 (Response Time)**：Avg 283.19 ms, Max 1079 ms
-* **指标二：吞吐量 (Throughput)**：16.24 RPS
+### 【测试的模块2】舆情交叉检索 (GET /api/opinions)
+* **指标一：响应时间 (Response Time)**：Avg 10990.61 ms, Max 33107 ms
+* **指标二：吞吐量 (Throughput)**：3.87 RPS
 * **指标三：并发用户数 (Concurrency)**：100
 * **指标四：错误率 (Error Rate)**：0.00%
 
 ---
 
-## 第二部分：写场景吞吐量压测 (负载体量瓶颈)
-> **压测环境说明**：验证系统后端在面临数据洪峰时的单次处理（解析 JSON + 去重验证 + 批量落库）的极限吞吐能力。场景变量为**单次导入的数据包体量 (Payload Size)**。此为后台系统级任务，非终端并发操作。
+## 【场景3】数据规模：200000条数据
 
-### 【测试的模块 3】数据源抓取写入 (POST /api/import/json)
+### 【测试的模块1】工作台轮询 (GET /api/dashboard/summary)
+* **指标一：响应时间 (Response Time)**：Avg 33875.85 ms, Max 37061 ms
+* **指标二：吞吐量 (Throughput)**：0.76 RPS
+* **指标三：并发用户数 (Concurrency)**：100
+* **指标四：错误率 (Error Rate)**：0.00%
 
-| 数据包体量 (Records) | 接口响应时间 (ms) | 处理吞吐量 (Records/Sec) | 错误率 / 状态 |
-|---|---|---|---|
-| **100 条** | 231 ms | **432 R/s** | 正常 |
-| **1000 条** | 2089 ms | **478 R/s** | 正常 |
-| **5000 条** | 10398 ms | **480 R/s** | 正常 |
-| **10000 条** | 20165 ms | **495 R/s** | 正常 |
+### 【测试的模块2】舆情交叉检索 (GET /api/opinions)
+* **指标一：响应时间 (Response Time)**：Avg 9068.41 ms, Max 30418 ms
+* **指标二：吞吐量 (Throughput)**：4.42 RPS
+* **指标三：并发用户数 (Concurrency)**：100
+* **指标四：错误率 (Error Rate)**：0.00%
 
 ---
 
-## 第三部分：体系结构性能测试结论
-
-1. **读吞吐量瓶颈在于计算层 (CPU)**：在 1W~20W 的数据规模扩张中，读接口响应时间几乎维持在 ~550ms 恒定。这证明了数据库 B树索引的 O(log N) 级查询极为高效，而系统的真实吞吐瓶颈在于单进程 ASGI 框架 (Uvicorn) 跑满了一颗核心的 CPU，导致全局并发处理上限锁死在 ~50 RPS 左右。
-2. **写吞吐量具备线性伸缩性**：系统在摄入极大 JSON payload 时，吞吐量恒定在 ~480 R/s。Pydantic 的解析及 ORM 落库逻辑没有表现出 O(N²) 的性能雪崩，且在 10000 条数据、耗时 20 秒的单次超大连接中，系统抗住了压力，未出现内存溢出 (OOM)。
-3. **读写竞争与架构锁缺陷**：综合一、二部分得出，当后台触发数据洪峰时（如第二部分持续 20 秒的批量落库），由于当前架构采用的 SQLite 引擎缺乏行级锁/MVCC特性，第一部分的查询用户将因锁等待被全部挂起长达 20 秒。这是当前单体架构设计上的最大性能隐患，建议在后续演进中迁移至 PostgreSQL 或引入读写分离。

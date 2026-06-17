@@ -6,6 +6,22 @@ import psutil
 from pathlib import Path
 import csv
 
+try:
+    import colorama
+    colorama.init()
+except ImportError:
+    pass
+
+class Colors:
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKCYAN = '\033[96m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+
 if sys.stdout.encoding != 'utf-8':
     sys.stdout.reconfigure(encoding='utf-8')
 
@@ -15,19 +31,18 @@ BACKEND_DIR = ROOT_DIR / "backend"
 GENERATE_SCRIPT = BACKEND_DIR / "scripts" / "generate_mock_data.py"
 LOCUST_FILE = SCRIPT_DIR / "locust_extreme.py"
 
-# 配置多个场景的数据量级
 SCENARIOS = [10000, 100000, 200000]
 USERS = 100
 SPAWN_RATE = 20
 RUN_TIME = "45s"
 
 def run_command(cmd, cwd=None, wait=True):
-    print(f"  > 运行命令: {' '.join(cmd)}")
+    print(f"  {Colors.OKBLUE}>{Colors.ENDC} 运行命令: {' '.join(cmd)}")
     if wait:
         result = subprocess.run(cmd, cwd=cwd)
         if result.returncode != 0:
-            print(f"  ! 命令执行失败，退出代码: {result.returncode}")
-            sys.exit(1)
+            print(f"  {Colors.FAIL}! 命令执行失败，退出代码: {result.returncode}{Colors.ENDC}")
+            raise Exception("Command failed")
     else:
         return subprocess.Popen(cmd, cwd=cwd)
 
@@ -44,7 +59,7 @@ from app.models.datasource import DataSource, OpinionItem
 from app.models.analysis import AnalysisResult
 from app.models.alert import Alert
 import json, random, hashlib
-from datetime import datetime
+from datetime import datetime, timezone
 
 Base.metadata.drop_all(bind=engine)
 Base.metadata.create_all(bind=engine)
@@ -64,7 +79,7 @@ opinions, analyses, alerts = [], [], []
 sentiments = ["positive", "neutral", "negative", "negative"] 
 
 for i, r in enumerate(records):
-    published_at = datetime.utcnow()
+    published_at = datetime.now(timezone.utc)
     item = OpinionItem(
         source_id=source.id, source_code="multi_test", source_type="json",
         external_id=f"mt_{{i}}", title=r["title"], content=r["content"],
@@ -132,37 +147,40 @@ def parse_metrics(stats_file):
     return metrics
 
 def main():
-    print("=" * 60)
-    print(" 🚀 性能压测多场景遍历套件启动")
-    print("=" * 60)
+    print(f"{Colors.OKCYAN}{Colors.BOLD}======================================================================={Colors.ENDC}")
+    print(f"{Colors.OKCYAN}{Colors.BOLD} 🚀 性能压测多场景遍历套件启动 (Multi-Scenario Load Test) {Colors.ENDC}")
+    print(f"{Colors.OKCYAN}{Colors.BOLD}======================================================================={Colors.ENDC}")
 
     report_file = SCRIPT_DIR.parent / "multi_scenario_performance_report.md"
     
-    # 初始化报告
     with open(report_file, "w", encoding="utf-8") as f:
         f.write("# 舆情风控系统 - 性能压测多场景对比报告\n\n")
         f.write("> **压测环境说明**：在所有压测场景下，系统后台均有一条常驻线程在以极高频率执行“数据源抓取”入库操作，以此引发底层的 SQLite 读写锁竞争（Read-Write Collision）。\n\n")
 
     for scenario_idx, count in enumerate(SCENARIOS, 1):
-        print(f"\n\n{'='*20} 正在执行场景 {scenario_idx}: {count} 条数据 {'='*20}")
+        print(f"\n{Colors.HEADER}{'='*20} 正在执行场景 {scenario_idx}: {count} 条数据 {'='*20}{Colors.ENDC}")
         data_file_name = f"mock_data_{count}"
         
-        print(f"[{count}级别] 1. 生成数据...")
+        print(f"{Colors.OKBLUE}[{count}级别] 1. 生成数据...{Colors.ENDC}")
         run_command([sys.executable, str(GENERATE_SCRIPT), "--count", str(count), "--output", data_file_name], cwd=ROOT_DIR)
 
-        print(f"[{count}级别] 2. 刷入数据库...")
+        print(f"{Colors.OKBLUE}[{count}级别] 2. 刷入数据库...{Colors.ENDC}")
         loader_script = write_db_loader_script(data_file_name)
         run_command([sys.executable, str(loader_script)])
         os.remove(loader_script)
 
-        print(f"[{count}级别] 3. 启动后台服务...")
-        server_process = run_command([sys.executable, "-m", "uvicorn", "app.main:app"], cwd=BACKEND_DIR, wait=False)
-        time.sleep(4)
+        server_process = None
+        col_proc = None
 
-        print(f"[{count}级别] 4. 启动系统后台“数据源抓取”干扰...")
-        collision_script = SCRIPT_DIR / "temp_collision.py"
-        with open(collision_script, "w", encoding="utf-8") as f:
-            f.write(f"""import requests, time, threading
+        try:
+            print(f"{Colors.OKBLUE}[{count}级别] 3. 启动后台服务...{Colors.ENDC}")
+            server_process = run_command([sys.executable, "-m", "uvicorn", "app.main:app"], cwd=BACKEND_DIR, wait=False)
+            time.sleep(4)
+
+            print(f"{Colors.OKBLUE}[{count}级别] 4. 启动系统后台“数据源抓取”干扰...{Colors.ENDC}")
+            collision_script = SCRIPT_DIR / "temp_collision.py"
+            with open(collision_script, "w", encoding="utf-8") as f:
+                f.write(f"""import requests, time, threading
 def poke():
     for _ in range(50):
         try:
@@ -173,56 +191,57 @@ def poke():
 threads = [threading.Thread(target=poke) for _ in range(2)]
 for t in threads: t.start()
 """)
-        col_proc = run_command([sys.executable, str(collision_script)], wait=False)
+            col_proc = run_command([sys.executable, str(collision_script)], wait=False)
 
-        print(f"[{count}级别] 5. 执行 Locust 压测 ({USERS}并发, {RUN_TIME})...")
-        results_prefix = str(SCRIPT_DIR.parent / "results" / f"multi_perf_{count}")
-        os.makedirs(os.path.dirname(results_prefix), exist_ok=True)
-        
-        locust_cmd = [
-            "locust", "-f", str(LOCUST_FILE),
-            "--host=http://localhost:8000",
-            "--headless", "-u", str(USERS), "-r", str(SPAWN_RATE),
-            "--run-time", RUN_TIME,
-            f"--csv={results_prefix}"
-        ]
-        run_command(locust_cmd)
-        
-        print(f"[{count}级别] 6. 清理后台服务...")
-        if os.name == 'nt':
-            os.system(f"taskkill /F /T /PID {server_process.pid} >nul 2>&1")
-            os.system(f"taskkill /F /T /PID {col_proc.pid} >nul 2>&1")
-        else:
-            server_process.terminate()
-            col_proc.terminate()
+            print(f"{Colors.WARNING}[{count}级别] 5. 执行 Locust 压测 ({USERS}并发, {RUN_TIME})...{Colors.ENDC}")
+            results_prefix = str(SCRIPT_DIR.parent / "results" / f"multi_perf_{count}")
+            os.makedirs(os.path.dirname(results_prefix), exist_ok=True)
             
-        print(f"[{count}级别] 7. 提取指标并写入报告...")
-        stats_file = f"{results_prefix}_stats.csv"
-        metrics = parse_metrics(stats_file)
-        
-        # 追加写入报告
-        with open(report_file, "a", encoding="utf-8") as f:
-            f.write(f"## 【场景{scenario_idx}】数据规模：{count}条数据\n\n")
-            
-            # 按预定顺序输出模块
-            modules_order = [
-                "工作台轮询 (GET /api/dashboard/summary)",
-                "舆情交叉检索 (GET /api/opinions)"
+            locust_cmd = [
+                "locust", "-f", str(LOCUST_FILE),
+                "--host=http://localhost:8000",
+                "--headless", "-u", str(USERS), "-r", str(SPAWN_RATE),
+                "--run-time", RUN_TIME,
+                f"--csv={results_prefix}"
             ]
+            run_command(locust_cmd)
             
-            for i, mod_name in enumerate(modules_order, 1):
-                mod_data = metrics.get(mod_name, {"avg_rt": "N/A", "max_rt": "N/A", "rps": "N/A", "error_rate": "N/A"})
-                f.write(f"### 【测试的模块{i}】{mod_name}\n")
-                f.write(f"* **指标一：响应时间 (Response Time)**：Avg {mod_data['avg_rt']} ms, Max {mod_data['max_rt']} ms\n")
-                f.write(f"* **指标二：吞吐量 (Throughput)**：{mod_data['rps']} RPS\n")
-                f.write(f"* **指标三：并发用户数 (Concurrency)**：{USERS}\n")
-                f.write(f"* **指标四：错误率 (Error Rate)**：{mod_data['error_rate']}%\n\n")
+            print(f"{Colors.OKBLUE}[{count}级别] 7. 提取指标并写入报告...{Colors.ENDC}")
+            stats_file = f"{results_prefix}_stats.csv"
+            metrics = parse_metrics(stats_file)
             
-            f.write("---\n\n")
+            with open(report_file, "a", encoding="utf-8") as f:
+                f.write(f"## 【场景{scenario_idx}】数据规模：{count}条数据\n\n")
+                modules_order = ["工作台轮询 (GET /api/dashboard/summary)", "舆情交叉检索 (GET /api/opinions)"]
+                
+                for i, mod_name in enumerate(modules_order, 1):
+                    mod_data = metrics.get(mod_name, {"avg_rt": "N/A", "max_rt": "N/A", "rps": "N/A", "error_rate": "N/A"})
+                    f.write(f"### 【测试的模块{i}】{mod_name}\n")
+                    f.write(f"* **指标一：响应时间 (Response Time)**：Avg {mod_data['avg_rt']} ms, Max {mod_data['max_rt']} ms\n")
+                    f.write(f"* **指标二：吞吐量 (Throughput)**：{mod_data['rps']} RPS\n")
+                    f.write(f"* **指标三：并发用户数 (Concurrency)**：{USERS}\n")
+                    f.write(f"* **指标四：错误率 (Error Rate)**：{mod_data['error_rate']}%\n\n")
+                
+                f.write("---\n\n")
+            
+            print(f"{Colors.OKGREEN}✅ 场景 {scenario_idx} 完成。{Colors.ENDC}")
+            
+        finally:
+            print(f"{Colors.OKBLUE}[{count}级别] 6. 清理后台服务...{Colors.ENDC}")
+            if server_process:
+                if os.name == 'nt':
+                    os.system(f"taskkill /F /T /PID {server_process.pid} >nul 2>&1")
+                else:
+                    server_process.terminate()
+            if col_proc:
+                if os.name == 'nt':
+                    os.system(f"taskkill /F /T /PID {col_proc.pid} >nul 2>&1")
+                else:
+                    col_proc.terminate()
         
-        print(f"✅ 场景 {scenario_idx} 完成。")
-        
-    print(f"\n🎉 所有压测场景执行完毕！综合报告已生成至: {report_file}")
+    print(f"\n{Colors.OKCYAN}{Colors.BOLD}======================================================================={Colors.ENDC}")
+    print(f"{Colors.OKGREEN}🎉 所有压测场景执行完毕！综合报告已生成至: {report_file}{Colors.ENDC}")
+    print(f"{Colors.OKCYAN}{Colors.BOLD}======================================================================={Colors.ENDC}")
 
 if __name__ == "__main__":
     main()

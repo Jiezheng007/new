@@ -7,7 +7,22 @@ import subprocess
 import threading
 from pathlib import Path
 
-# 强制刷新输出
+try:
+    import colorama
+    colorama.init()
+except ImportError:
+    pass
+
+class Colors:
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKCYAN = '\033[96m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+
 def print_flushed(*args, **kwargs):
     kwargs['flush'] = True
     print(*args, **kwargs)
@@ -41,17 +56,17 @@ def poller_thread():
                 res = requests.get("http://127.0.0.1:8001/api/dashboard/summary", headers=headers, timeout=0.5)
                 if res.status_code == 200:
                     if state["last_status"] != "OK":
-                        print_flushed(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] [OK] 探针：访问成功 (HTTP 200)")
+                        print_flushed(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] {Colors.OKGREEN}[OK]{Colors.ENDC} 探针：访问成功 (HTTP 200)")
                         if state["time_crashed"] is not None and state["time_recovered"] is None:
                             state["time_recovered"] = time.time()
                     state["last_status"] = "OK"
                 else:
                     if state["last_status"] != "ERROR":
-                        print_flushed(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] [ERROR] 探针：访问异常 (HTTP {res.status_code})")
+                        print_flushed(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] {Colors.WARNING}[ERROR]{Colors.ENDC} 探针：访问异常 (HTTP {res.status_code})")
                     state["last_status"] = "ERROR"
             except requests.exceptions.RequestException:
                 if state["last_status"] != "DOWN":
-                    print_flushed(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] [DOWN] 探针：连接被拒绝 (服务器已宕机)")
+                    print_flushed(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] {Colors.FAIL}[DOWN]{Colors.ENDC} 探针：连接被拒绝 (服务器已宕机)")
                     if state["time_crashed"] is None:
                         state["time_crashed"] = time.time()
                 state["last_status"] = "DOWN"
@@ -66,7 +81,7 @@ def get_token():
         except Exception:
             pass
         time.sleep(0.5)
-    print_flushed("无法获取登录 Token，服务未启动")
+    print_flushed(f"{Colors.FAIL}无法获取登录 Token，服务未启动{Colors.ENDC}")
     sys.exit(1)
 
 def kill_process(proc):
@@ -77,19 +92,19 @@ def kill_process(proc):
             proc.kill()
         proc.wait(timeout=2)
     except Exception as e:
-        print_flushed(f"杀进程失败: {e}")
+        print_flushed(f"{Colors.WARNING}杀进程失败: {e}{Colors.ENDC}")
 
 def main():
-    print_flushed("=" * 60)
-    print_flushed(" [TEST] 系统宕机与重启恢复测试 (Crash & Reboot MTTR)")
-    print_flushed("=" * 60)
+    print_flushed(f"{Colors.OKCYAN}{Colors.BOLD}======================================================================={Colors.ENDC}")
+    print_flushed(f"{Colors.OKCYAN}{Colors.BOLD} [TEST] 系统宕机与重启恢复测试 (Crash & Reboot MTTR) {Colors.ENDC}")
+    print_flushed(f"{Colors.OKCYAN}{Colors.BOLD}======================================================================={Colors.ENDC}")
 
     server = None
     server2 = None
     poller = None
 
     try:
-        print_flushed("\n[阶段 1] 启动初始服务...")
+        print_flushed(f"\n{Colors.HEADER}[阶段 1]{Colors.ENDC} 启动初始服务...")
         server = start_server()
         state["token"] = get_token()
         
@@ -98,7 +113,13 @@ def main():
         
         time.sleep(3)
 
-        print_flushed("\n[阶段 2] [KILL] 模拟突发灾难：强制击杀后端进程 (Kill -9)!")
+        print_flushed(f"\n{Colors.HEADER}[阶段 2]{Colors.ENDC} {Colors.FAIL}{Colors.BOLD}[KILL]{Colors.ENDC} 模拟突发灾难：强制击杀后端进程 (Kill -9)!")
+        
+        # [FIX] 防止预热期间因偶尔的超时触发假宕机，重置测量指针
+        state["last_status"] = "OK"
+        state["time_crashed"] = None
+        state["time_recovered"] = None
+
         kill_process(server)
         
         wait_time = 0
@@ -107,33 +128,37 @@ def main():
             wait_time += 0.1
             
         if state["last_status"] != "DOWN":
-            print_flushed("警告：进程可能未被成功击杀，探针仍能访问！")
+            print_flushed(f"{Colors.WARNING}警告：进程可能未被成功击杀，探针仍能访问！{Colors.ENDC}")
             
-        print_flushed(f"   => 系统已完全瘫痪，等待 2 秒钟模拟抢修时间...")
+        print_flushed(f"   {Colors.WARNING}=> 系统已完全瘫痪，等待 2 秒钟模拟抢修时间...{Colors.ENDC}")
         time.sleep(2)
 
-        print_flushed("\n[阶段 3] [RESTART] 运维介入：重新拉起 Web 服务...")
+        print_flushed(f"\n{Colors.HEADER}[阶段 3]{Colors.ENDC} {Colors.OKBLUE}{Colors.BOLD}[RESTART]{Colors.ENDC} 运维介入：重新拉起 Web 服务...")
         state["time_restarted"] = time.time()
+        
+        # [FIX] 确保从这里开始重新计算恢复时间
+        state["time_recovered"] = None 
+        
         server2 = start_server()
 
-        print_flushed("   => 正在监测冷启动时间，等待服务吐出第一个 200 OK...")
+        print_flushed(f"   {Colors.OKBLUE}=> 正在监测冷启动时间，等待服务吐出第一个 200 OK...{Colors.ENDC}")
         wait_time = 0
         while state["time_recovered"] is None and wait_time < 30:
             time.sleep(0.1)
             wait_time += 0.1
             
         if state["time_recovered"] is None:
-            print_flushed("警告：服务未能在 30 秒内恢复！")
+            print_flushed(f"{Colors.FAIL}警告：服务未能在 30 秒内恢复！{Colors.ENDC}")
             return
 
         crash_duration = state["time_recovered"] - state["time_crashed"]
         mttr = state["time_recovered"] - state["time_restarted"]
         
-        print_flushed("\n" + "=" * 60)
-        print_flushed(f" [RESULT] 测试结果")
-        print_flushed(f"  - 服务总不可用时长: {crash_duration:.3f} 秒")
-        print_flushed(f"  - 框架冷启动恢复时间 (MTTR): {mttr:.3f} 秒")
-        print_flushed("=" * 60)
+        print_flushed(f"\n{Colors.OKCYAN}{Colors.BOLD}======================================================================={Colors.ENDC}")
+        print_flushed(f" {Colors.OKGREEN}{Colors.BOLD}[RESULT] 测试结果{Colors.ENDC}")
+        print_flushed(f"  {Colors.BOLD}- 服务总不可用时长:{Colors.ENDC} {Colors.WARNING}{crash_duration:.3f} 秒{Colors.ENDC}")
+        print_flushed(f"  {Colors.BOLD}- 框架冷启动恢复时间 (MTTR):{Colors.ENDC} {Colors.OKGREEN}{mttr:.3f} 秒{Colors.ENDC}")
+        print_flushed(f"{Colors.OKCYAN}{Colors.BOLD}======================================================================={Colors.ENDC}")
 
         report_file = SCRIPT_DIR.parent / "crash_recovery_report.md"
         with open(report_file, "w", encoding="utf-8") as f:
@@ -151,7 +176,7 @@ def main():
             f.write("1. **状态隔离性良好**：系统使用的是无状态（Stateless）的 JWT 鉴权机制，且 SQLite 数据库日志保证了文件的一致性。当后端被无情秒杀时，没有任何用户会话或数据库结构被破坏。\n")
             f.write("2. **极致的轻量级冷启动**：由于项目未使用极其沉重的微服务依赖，纯正的 FastAPI + SQLAlchemy 架构展现出了极其惊艳的**毫秒级冷启动速度**。只要配置了诸如 Supervisor/Docker 类的守护进程，即使发生致命宕机，系统也能在极短的时间内“满血复活”，用户甚至只会觉得网页稍微卡顿了一下。\n")
 
-        print_flushed(f"\n[DONE] 压测完成！专项报告已生成至: {report_file}")
+        print_flushed(f"\n{Colors.OKGREEN}[DONE]{Colors.ENDC} 压测完成！专项报告已生成至: {report_file}")
 
     finally:
         state["running"] = False
