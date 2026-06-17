@@ -1,0 +1,2200 @@
+=== STATIC ANALYSIS RAW OUTPUT ===
+
+--- 1. Cyclomatic Complexity (radon) ---
+Blocks with complexity >= 6 (Grade B+):
+c:\Users\Zhang\Desktop\SA_hw\new\backend\app\api\datasources.py
+    F 131:0 update_datasource - C
+c:\Users\Zhang\Desktop\SA_hw\new\backend\app\api\opinions.py
+    F 119:0 list_opinions - C
+c:\Users\Zhang\Desktop\SA_hw\new\backend\app\api\rules.py
+    F 133:0 update_sensitive_keyword - C
+    F 306:0 replace_risk_thresholds - C
+c:\Users\Zhang\Desktop\SA_hw\new\backend\app\api\users.py
+    F 144:0 update_user - C
+c:\Users\Zhang\Desktop\SA_hw\new\backend\app\services\audit.py
+    F 101:0 list_audit_logs - C
+c:\Users\Zhang\Desktop\SA_hw\new\backend\app\services\importers.py
+    F 33:0 parse_csv - C
+    F 76:0 parse_json - C
+c:\Users\Zhang\Desktop\SA_hw\new\backend\app\services\ingestion.py
+    F 111:0 _clean_record - C
+c:\Users\Zhang\Desktop\SA_hw\new\backend\app\services\reports.py
+    F 314:0 _write_excel - D
+    F 246:0 _row_payload - C
+c:\Users\Zhang\Desktop\SA_hw\new\backend\app\services\scoring.py
+    F 239:0 _build_explanation - C
+c:\Users\Zhang\Desktop\SA_hw\new\backend\app\services\tickets.py
+    F 105:0 create_ticket_from_alert - C
+c:\Users\Zhang\Desktop\SA_hw\new\backend\app\services\connectors\rss.py
+    C 30:0 RssConnector - C
+    M 33:4 RssConnector.fetch - C
+c:\Users\Zhang\Desktop\SA_hw\new\backend\app\services\connectors\weibo.py
+    F 75:0 _coerce - C
+
+16 blocks (classes, functions, methods) analyzed.
+Average complexity: C (15.125)
+
+
+--- 2. Code Duplication (pylint similarities) ---
+************* Module app.web.__init__
+c:\Users\Zhang\Desktop\SA_hw\new\backend\app\web\__init__.py:1:0: R0801: Similar lines in 2 files
+==app.services.alerts:[319:336]
+==app.services.tickets:[446:463]
+        "opinion": {
+            "id": opinion.id,
+            "title": opinion.title,
+            "content": opinion.content,
+            "url": opinion.url,
+            "author": opinion.author,
+            "language": opinion.language,
+            "published_at": opinion.published_at,
+            "source_id": opinion.source_id,
+            "source_code": opinion.source_code,
+            "source_name": source.name if source is not None else "",
+            "source_type": opinion.source_type,
+            "sentiment": analysis.sentiment if analysis is not None else None,
+            "analysis_score": analysis.score if analysis is not None else None,
+            "analysis_level": analysis.level if analysis is not None else None,
+            "analysis_status": analysis.status if analysis is not None else None,
+        }, (duplicate-code)
+c:\Users\Zhang\Desktop\SA_hw\new\backend\app\web\__init__.py:1:0: R0801: Similar lines in 2 files
+==app.schemas.alerts:[20:37]
+==app.schemas.tickets:[22:39]
+    id: int
+    title: str
+    content: str
+    url: str
+    author: str
+    language: str
+    published_at: Optional[datetime] = None
+    source_id: int
+    source_code: str
+    source_name: str = ""
+    source_type: str
+    sentiment: Optional[str] = None
+    analysis_score: Optional[int] = None
+    analysis_level: Optional[str] = None
+    analysis_status: Optional[str] = None
+
+ (duplicate-code)
+c:\Users\Zhang\Desktop\SA_hw\new\backend\app\web\__init__.py:1:0: R0801: Similar lines in 2 files
+==app.services.alerts:[178:187]
+==app.services.tickets:[353:362]
+    if keyword:
+        like = f"%{keyword}%"
+        query = query.filter(
+            (OpinionItem.title.like(like)) | (OpinionItem.content.like(like))
+        )
+        count_query = count_query.filter(
+            (OpinionItem.title.like(like)) | (OpinionItem.content.like(like))
+        )
+    if start_at is not None: (duplicate-code)
+c:\Users\Zhang\Desktop\SA_hw\new\backend\app\web\__init__.py:1:0: R0801: Similar lines in 2 files
+==app.models.report:[116:125]
+==app.models.ticket:[124:133]
+    )
+    created_by_username: Mapped[str] = mapped_column(String(64), default="", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False, index=True
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False
+    )
+ (duplicate-code)
+c:\Users\Zhang\Desktop\SA_hw\new\backend\app\web\__init__.py:1:0: R0801: Similar lines in 2 files
+==app.services.connectors.json_url:[22:29]
+==app.services.connectors.weibo:[25:33]
+        if not source.url:
+            raise ConnectorError(f"Data source '{source.code}' has no URL configured")
+
+        try:
+            with httpx.Client(timeout=15.0, follow_redirects=True) as client:
+                resp = client.get(source.url)
+                resp.raise_for_status()
+                payload = resp.json() (duplicate-code)
+c:\Users\Zhang\Desktop\SA_hw\new\backend\app\web\__init__.py:1:0: R0801: Similar lines in 2 files
+==app.models.alert:[61:68]
+==app.models.ticket:[74:81]
+    opinion_item_id: Mapped[int] = mapped_column(
+        ForeignKey("opinion_items.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    risk_level: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
+    risk_score: Mapped[int] = mapped_column(Integer, nullable=False) (duplicate-code)
+c:\Users\Zhang\Desktop\SA_hw\new\backend\app\web\__init__.py:1:0: R0801: Similar lines in 2 files
+==app.models.alert:[58:66]
+==app.models.analysis:[44:52]
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    opinion_item_id: Mapped[int] = mapped_column(
+        ForeignKey("opinion_items.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    ) (duplicate-code)
+c:\Users\Zhang\Desktop\SA_hw\new\backend\app\web\__init__.py:1:0: R0801: Similar lines in 2 files
+==app.services.connectors.weibo:[119:125]
+==app.services.importers:[131:138]
+    text = str(value).strip()
+    if not text:
+        return None
+    try:
+        # Python 3.11+ understands the common ISO-8601 shapes natively.
+        return datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError: (duplicate-code)
+c:\Users\Zhang\Desktop\SA_hw\new\backend\app\web\__init__.py:1:0: R0801: Similar lines in 2 files
+==app.api.opinions:[71:80]
+==app.services.reports:[237:247]
+    if not value:
+        return default
+    try:
+        return json.loads(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _analysis_to_out(row: AnalysisResult | None) -> AnalysisResultOut: (duplicate-code)
+c:\Users\Zhang\Desktop\SA_hw\new\backend\app\web\__init__.py:1:0: R0801: Similar lines in 2 files
+==app.api.datasources:[99:105]
+==app.api.rules:[113:119]
+    )
+    db.add(row)
+    db.flush()
+    record_audit(
+        db,
+        actor=admin, (duplicate-code)
+c:\Users\Zhang\Desktop\SA_hw\new\backend\app\web\__init__.py:1:0: R0801: Similar lines in 2 files
+==app.schemas.auth:[22:27]
+==app.schemas.users:[56:61]
+    role: str
+    role_name: str
+    permissions: list[str]
+    nav_items: list[dict]
+    created_at: datetime (duplicate-code)
+c:\Users\Zhang\Desktop\SA_hw\new\backend\app\web\__init__.py:1:0: R0801: Similar lines in 2 files
+==app.schemas.auth:[17:22]
+==app.schemas.users:[50:55]
+class UserOut(BaseModel):
+    id: int
+    username: str
+    full_name: str
+    is_active: bool (duplicate-code)
+c:\Users\Zhang\Desktop\SA_hw\new\backend\app\web\__init__.py:1:0: R0801: Similar lines in 2 files
+==app.schemas.alerts:[21:26]
+==app.schemas.opinions:[21:26]
+    title: str
+    content: str
+    url: str
+    author: str
+    language: str (duplicate-code)
+c:\Users\Zhang\Desktop\SA_hw\new\backend\app\web\__init__.py:1:0: R0801: Similar lines in 2 files
+==app.schemas.alerts:[38:43]
+==app.schemas.dashboard:[46:51]
+    id: int
+    opinion_item_id: int
+    risk_level: str
+    risk_score: int
+    status: str (duplicate-code)
+
+------------------------------------------------------------------
+Your code has been rated at 9.96/10 (previous run: 9.96/10, +0.00)
+
+
+
+--- 3. Module Coupling Dependencies (pydeps JSON) ---
+C:\Users\Zhang\CodeTools\anaconda3\Lib\site-packages\docutils\utils\math\latex2mathml.py:954: SyntaxWarning: invalid escape sequence '\i'
+  node = parse_latex_math(node, '\int\dotsi\int')
+{
+    "__main__": {
+        "bacon": 0,
+        "imports": [
+            "app",
+            "app.api",
+            "app.api.alerts",
+            "app.api.audit",
+            "app.api.auth",
+            "app.api.dashboard",
+            "app.api.datasources",
+            "app.api.deps",
+            "app.api.imports",
+            "app.api.opinions",
+            "app.api.protected",
+            "app.api.reports",
+            "app.api.rules",
+            "app.api.tickets",
+            "app.api.users",
+            "app.core",
+            "app.core.config",
+            "app.core.security",
+            "app.db",
+            "app.db.session",
+            "app.main",
+            "app.models",
+            "app.models.alert",
+            "app.models.analysis",
+            "app.models.audit",
+            "app.models.datasource",
+            "app.models.report",
+            "app.models.role_codes",
+            "app.models.rule",
+            "app.models.ticket",
+            "app.models.user",
+            "app.schemas",
+            "app.schemas.alerts",
+            "app.schemas.analysis",
+            "app.schemas.audit",
+            "app.schemas.auth",
+            "app.schemas.dashboard",
+            "app.schemas.datasources",
+            "app.schemas.imports",
+            "app.schemas.opinions",
+            "app.schemas.reports",
+            "app.schemas.rules",
+            "app.schemas.tickets",
+            "app.schemas.users",
+            "app.services",
+            "app.services.alerts",
+            "app.services.analysis",
+            "app.services.audit",
+            "app.services.bootstrap",
+            "app.services.connectors",
+            "app.services.connectors.json_url",
+            "app.services.connectors.rss",
+            "app.services.connectors.static_demo",
+            "app.services.connectors.weibo",
+            "app.services.dashboard",
+            "app.services.datasource_fetch",
+            "app.services.importers",
+            "app.services.ingestion",
+            "app.services.nlp",
+            "app.services.nlp.base",
+            "app.services.nlp.exceptions",
+            "app.services.nlp.keyword",
+            "app.services.reports",
+            "app.services.scheduler",
+            "app.services.scoring",
+            "app.services.tickets",
+            "app.web",
+            "app.web.routes"
+        ],
+        "name": "__main__",
+        "path": null
+    },
+    "app": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.api.alerts",
+            "app.api.audit",
+            "app.api.auth",
+            "app.api.dashboard",
+            "app.api.datasources",
+            "app.api.deps",
+            "app.api.imports",
+            "app.api.opinions",
+            "app.api.protected",
+            "app.api.reports",
+            "app.api.rules",
+            "app.api.tickets",
+            "app.api.users",
+            "app.core.security",
+            "app.db.session",
+            "app.main",
+            "app.models",
+            "app.models.alert",
+            "app.models.analysis",
+            "app.models.audit",
+            "app.models.datasource",
+            "app.models.report",
+            "app.models.rule",
+            "app.models.ticket",
+            "app.models.user",
+            "app.schemas.alerts",
+            "app.schemas.datasources",
+            "app.schemas.opinions",
+            "app.schemas.reports",
+            "app.schemas.tickets",
+            "app.services.alerts",
+            "app.services.analysis",
+            "app.services.audit",
+            "app.services.bootstrap",
+            "app.services.connectors",
+            "app.services.connectors.json_url",
+            "app.services.connectors.rss",
+            "app.services.connectors.static_demo",
+            "app.services.connectors.weibo",
+            "app.services.dashboard",
+            "app.services.datasource_fetch",
+            "app.services.importers",
+            "app.services.ingestion",
+            "app.services.nlp",
+            "app.services.nlp.keyword",
+            "app.services.reports",
+            "app.services.scheduler",
+            "app.services.scoring",
+            "app.services.tickets",
+            "app.web.routes"
+        ],
+        "name": "app",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\__init__.py"
+    },
+    "app.api": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.api.alerts",
+            "app.api.audit",
+            "app.api.auth",
+            "app.api.dashboard",
+            "app.api.datasources",
+            "app.api.imports",
+            "app.api.opinions",
+            "app.api.protected",
+            "app.api.reports",
+            "app.api.rules",
+            "app.api.tickets",
+            "app.api.users",
+            "app.main",
+            "app.web.routes"
+        ],
+        "name": "app.api",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\api\\__init__.py"
+    },
+    "app.api.alerts": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.main"
+        ],
+        "imports": [
+            "app",
+            "app.api",
+            "app.api.deps",
+            "app.db",
+            "app.db.session",
+            "app.models",
+            "app.models.alert",
+            "app.models.role_codes",
+            "app.models.user",
+            "app.schemas",
+            "app.schemas.alerts",
+            "app.services",
+            "app.services.alerts",
+            "app.services.audit",
+            "fastapi",
+            "sqlalchemy",
+            "sqlalchemy.orm",
+            "sqlalchemy.orm.Session"
+        ],
+        "name": "app.api.alerts",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\api\\alerts.py"
+    },
+    "app.api.audit": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.main"
+        ],
+        "imports": [
+            "app",
+            "app.api",
+            "app.api.deps",
+            "app.db",
+            "app.db.session",
+            "app.models",
+            "app.models.role_codes",
+            "app.models.user",
+            "app.schemas",
+            "app.schemas.audit",
+            "app.services",
+            "app.services.audit",
+            "fastapi",
+            "sqlalchemy",
+            "sqlalchemy.orm",
+            "sqlalchemy.orm.Session"
+        ],
+        "name": "app.api.audit",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\api\\audit.py"
+    },
+    "app.api.auth": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.main"
+        ],
+        "imports": [
+            "app",
+            "app.api",
+            "app.api.deps",
+            "app.core",
+            "app.core.config",
+            "app.core.security",
+            "app.db",
+            "app.db.session",
+            "app.models",
+            "app.models.user",
+            "app.schemas",
+            "app.schemas.auth",
+            "app.services",
+            "app.services.audit",
+            "fastapi",
+            "sqlalchemy",
+            "sqlalchemy.orm",
+            "sqlalchemy.orm.Session"
+        ],
+        "name": "app.api.auth",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\api\\auth.py"
+    },
+    "app.api.dashboard": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.main"
+        ],
+        "imports": [
+            "app",
+            "app.api",
+            "app.api.deps",
+            "app.db",
+            "app.db.session",
+            "app.models",
+            "app.models.user",
+            "app.schemas",
+            "app.schemas.dashboard",
+            "app.services",
+            "app.services.dashboard",
+            "fastapi",
+            "sqlalchemy",
+            "sqlalchemy.orm",
+            "sqlalchemy.orm.Session"
+        ],
+        "name": "app.api.dashboard",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\api\\dashboard.py"
+    },
+    "app.api.datasources": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.main"
+        ],
+        "imports": [
+            "app",
+            "app.api",
+            "app.api.deps",
+            "app.db",
+            "app.db.session",
+            "app.models",
+            "app.models.datasource",
+            "app.models.role_codes",
+            "app.models.user",
+            "app.schemas",
+            "app.schemas.datasources",
+            "app.services",
+            "app.services.audit",
+            "app.services.datasource_fetch",
+            "fastapi",
+            "sqlalchemy",
+            "sqlalchemy.orm",
+            "sqlalchemy.orm.Session"
+        ],
+        "name": "app.api.datasources",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\api\\datasources.py"
+    },
+    "app.api.deps": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.api.alerts",
+            "app.api.audit",
+            "app.api.auth",
+            "app.api.dashboard",
+            "app.api.datasources",
+            "app.api.imports",
+            "app.api.opinions",
+            "app.api.protected",
+            "app.api.reports",
+            "app.api.rules",
+            "app.api.tickets",
+            "app.api.users",
+            "app.web.routes"
+        ],
+        "imports": [
+            "app",
+            "app.core",
+            "app.core.security",
+            "app.db",
+            "app.db.session",
+            "app.models",
+            "app.models.role_codes",
+            "app.models.user",
+            "fastapi",
+            "fastapi.security",
+            "sqlalchemy",
+            "sqlalchemy.orm",
+            "sqlalchemy.orm.Session"
+        ],
+        "name": "app.api.deps",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\api\\deps.py"
+    },
+    "app.api.imports": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.main"
+        ],
+        "imports": [
+            "app",
+            "app.api",
+            "app.api.deps",
+            "app.db",
+            "app.db.session",
+            "app.models",
+            "app.models.datasource",
+            "app.models.role_codes",
+            "app.models.user",
+            "app.schemas",
+            "app.schemas.imports",
+            "app.services",
+            "app.services.analysis",
+            "app.services.audit",
+            "app.services.connectors",
+            "app.services.importers",
+            "app.services.ingestion",
+            "fastapi",
+            "sqlalchemy",
+            "sqlalchemy.orm",
+            "sqlalchemy.orm.Session"
+        ],
+        "name": "app.api.imports",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\api\\imports.py"
+    },
+    "app.api.opinions": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.main"
+        ],
+        "imports": [
+            "app",
+            "app.api",
+            "app.api.deps",
+            "app.db",
+            "app.db.session",
+            "app.models",
+            "app.models.analysis",
+            "app.models.datasource",
+            "app.models.role_codes",
+            "app.models.user",
+            "app.schemas",
+            "app.schemas.analysis",
+            "app.schemas.opinions",
+            "app.services",
+            "app.services.analysis",
+            "app.services.audit",
+            "fastapi",
+            "sqlalchemy",
+            "sqlalchemy.orm",
+            "sqlalchemy.orm.Session"
+        ],
+        "name": "app.api.opinions",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\api\\opinions.py"
+    },
+    "app.api.protected": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.main"
+        ],
+        "imports": [
+            "app",
+            "app.api",
+            "app.api.deps",
+            "app.models",
+            "app.models.role_codes",
+            "app.models.user",
+            "fastapi"
+        ],
+        "name": "app.api.protected",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\api\\protected.py"
+    },
+    "app.api.reports": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.main"
+        ],
+        "imports": [
+            "app",
+            "app.api",
+            "app.api.deps",
+            "app.db",
+            "app.db.session",
+            "app.models",
+            "app.models.report",
+            "app.models.role_codes",
+            "app.models.user",
+            "app.schemas",
+            "app.schemas.reports",
+            "app.services",
+            "app.services.audit",
+            "app.services.reports",
+            "fastapi",
+            "fastapi.responses",
+            "sqlalchemy",
+            "sqlalchemy.orm",
+            "sqlalchemy.orm.Session"
+        ],
+        "name": "app.api.reports",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\api\\reports.py"
+    },
+    "app.api.rules": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.main"
+        ],
+        "imports": [
+            "app",
+            "app.api",
+            "app.api.deps",
+            "app.db",
+            "app.db.session",
+            "app.models",
+            "app.models.role_codes",
+            "app.models.rule",
+            "app.models.user",
+            "app.schemas",
+            "app.schemas.rules",
+            "app.services",
+            "app.services.audit",
+            "fastapi",
+            "sqlalchemy",
+            "sqlalchemy.orm",
+            "sqlalchemy.orm.Session"
+        ],
+        "name": "app.api.rules",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\api\\rules.py"
+    },
+    "app.api.tickets": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.main"
+        ],
+        "imports": [
+            "app",
+            "app.api",
+            "app.api.deps",
+            "app.db",
+            "app.db.session",
+            "app.models",
+            "app.models.role_codes",
+            "app.models.user",
+            "app.schemas",
+            "app.schemas.tickets",
+            "app.services",
+            "app.services.alerts",
+            "app.services.audit",
+            "app.services.tickets",
+            "fastapi",
+            "sqlalchemy",
+            "sqlalchemy.orm",
+            "sqlalchemy.orm.Session"
+        ],
+        "name": "app.api.tickets",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\api\\tickets.py"
+    },
+    "app.api.users": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.main"
+        ],
+        "imports": [
+            "app",
+            "app.api",
+            "app.api.deps",
+            "app.core",
+            "app.core.security",
+            "app.db",
+            "app.db.session",
+            "app.models",
+            "app.models.audit",
+            "app.models.role_codes",
+            "app.models.user",
+            "app.schemas",
+            "app.schemas.users",
+            "app.services",
+            "app.services.audit",
+            "fastapi",
+            "sqlalchemy",
+            "sqlalchemy.orm",
+            "sqlalchemy.orm.Session"
+        ],
+        "name": "app.api.users",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\api\\users.py"
+    },
+    "app.core": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.api.auth",
+            "app.api.deps",
+            "app.api.users",
+            "app.core.security",
+            "app.db.session",
+            "app.main",
+            "app.services.bootstrap",
+            "app.services.nlp",
+            "app.services.reports",
+            "app.services.scheduler",
+            "app.web.routes"
+        ],
+        "name": "app.core",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\core\\__init__.py"
+    },
+    "app.core.config": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.api.auth",
+            "app.core.security",
+            "app.db.session",
+            "app.main",
+            "app.services.bootstrap",
+            "app.services.nlp",
+            "app.services.reports",
+            "app.services.scheduler"
+        ],
+        "imports": [
+            "pydantic_settings"
+        ],
+        "name": "app.core.config",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\core\\config.py"
+    },
+    "app.core.security": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.api.auth",
+            "app.api.deps",
+            "app.api.users",
+            "app.services.bootstrap",
+            "app.web.routes"
+        ],
+        "imports": [
+            "app",
+            "app.core",
+            "app.core.config",
+            "jose",
+            "jose.jwt",
+            "passlib",
+            "passlib.context"
+        ],
+        "name": "app.core.security",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\core\\security.py"
+    },
+    "app.db": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.api.alerts",
+            "app.api.audit",
+            "app.api.auth",
+            "app.api.dashboard",
+            "app.api.datasources",
+            "app.api.deps",
+            "app.api.imports",
+            "app.api.opinions",
+            "app.api.reports",
+            "app.api.rules",
+            "app.api.tickets",
+            "app.api.users",
+            "app.models.alert",
+            "app.models.analysis",
+            "app.models.audit",
+            "app.models.datasource",
+            "app.models.report",
+            "app.models.rule",
+            "app.models.ticket",
+            "app.models.user",
+            "app.services.bootstrap",
+            "app.services.reports",
+            "app.services.scheduler",
+            "app.web.routes"
+        ],
+        "name": "app.db",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\db\\__init__.py"
+    },
+    "app.db.session": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.api.alerts",
+            "app.api.audit",
+            "app.api.auth",
+            "app.api.dashboard",
+            "app.api.datasources",
+            "app.api.deps",
+            "app.api.imports",
+            "app.api.opinions",
+            "app.api.reports",
+            "app.api.rules",
+            "app.api.tickets",
+            "app.api.users",
+            "app.models.alert",
+            "app.models.analysis",
+            "app.models.audit",
+            "app.models.datasource",
+            "app.models.report",
+            "app.models.rule",
+            "app.models.ticket",
+            "app.models.user",
+            "app.services.bootstrap",
+            "app.services.reports",
+            "app.services.scheduler",
+            "app.web.routes"
+        ],
+        "imports": [
+            "app",
+            "app.core",
+            "app.core.config",
+            "sqlalchemy",
+            "sqlalchemy.orm",
+            "sqlalchemy.orm.Session"
+        ],
+        "name": "app.db.session",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\db\\session.py"
+    },
+    "app.main": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__"
+        ],
+        "imports": [
+            "app",
+            "app.api",
+            "app.api.alerts",
+            "app.api.audit",
+            "app.api.auth",
+            "app.api.dashboard",
+            "app.api.datasources",
+            "app.api.imports",
+            "app.api.opinions",
+            "app.api.protected",
+            "app.api.reports",
+            "app.api.rules",
+            "app.api.tickets",
+            "app.api.users",
+            "app.core",
+            "app.core.config",
+            "app.services",
+            "app.services.bootstrap",
+            "app.services.scheduler",
+            "app.web",
+            "app.web.routes",
+            "fastapi",
+            "fastapi.staticfiles"
+        ],
+        "name": "app.main",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\main.py"
+    },
+    "app.models": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.api.alerts",
+            "app.api.audit",
+            "app.api.auth",
+            "app.api.dashboard",
+            "app.api.datasources",
+            "app.api.deps",
+            "app.api.imports",
+            "app.api.opinions",
+            "app.api.protected",
+            "app.api.reports",
+            "app.api.rules",
+            "app.api.tickets",
+            "app.api.users",
+            "app.models",
+            "app.models.alert",
+            "app.models.analysis",
+            "app.models.audit",
+            "app.models.datasource",
+            "app.models.report",
+            "app.models.rule",
+            "app.models.ticket",
+            "app.schemas.alerts",
+            "app.schemas.reports",
+            "app.schemas.tickets",
+            "app.services.alerts",
+            "app.services.analysis",
+            "app.services.audit",
+            "app.services.bootstrap",
+            "app.services.connectors",
+            "app.services.connectors.json_url",
+            "app.services.connectors.rss",
+            "app.services.connectors.static_demo",
+            "app.services.connectors.weibo",
+            "app.services.dashboard",
+            "app.services.datasource_fetch",
+            "app.services.ingestion",
+            "app.services.reports",
+            "app.services.scheduler",
+            "app.services.scoring",
+            "app.services.tickets",
+            "app.web.routes"
+        ],
+        "imports": [
+            "app",
+            "app.models",
+            "app.models.alert",
+            "app.models.analysis",
+            "app.models.audit",
+            "app.models.datasource",
+            "app.models.report",
+            "app.models.rule",
+            "app.models.ticket",
+            "app.models.user"
+        ],
+        "name": "app.models",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\models\\__init__.py"
+    },
+    "app.models.alert": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.api.alerts",
+            "app.models",
+            "app.schemas.alerts",
+            "app.services.alerts",
+            "app.services.dashboard",
+            "app.services.tickets"
+        ],
+        "imports": [
+            "app",
+            "app.db",
+            "app.db.session",
+            "app.models",
+            "app.models.user",
+            "sqlalchemy",
+            "sqlalchemy.orm"
+        ],
+        "name": "app.models.alert",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\models\\alert.py"
+    },
+    "app.models.analysis": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.api.opinions",
+            "app.models",
+            "app.services.alerts",
+            "app.services.analysis",
+            "app.services.dashboard",
+            "app.services.reports",
+            "app.services.scoring",
+            "app.services.tickets"
+        ],
+        "imports": [
+            "app",
+            "app.db",
+            "app.db.session",
+            "app.models",
+            "app.models.user",
+            "sqlalchemy",
+            "sqlalchemy.orm"
+        ],
+        "name": "app.models.analysis",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\models\\analysis.py"
+    },
+    "app.models.audit": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.api.users",
+            "app.models",
+            "app.services.audit",
+            "app.services.bootstrap"
+        ],
+        "imports": [
+            "app",
+            "app.db",
+            "app.db.session",
+            "app.models",
+            "app.models.user",
+            "sqlalchemy",
+            "sqlalchemy.orm"
+        ],
+        "name": "app.models.audit",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\models\\audit.py"
+    },
+    "app.models.datasource": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.api.datasources",
+            "app.api.imports",
+            "app.api.opinions",
+            "app.models",
+            "app.services.alerts",
+            "app.services.analysis",
+            "app.services.bootstrap",
+            "app.services.connectors",
+            "app.services.connectors.json_url",
+            "app.services.connectors.rss",
+            "app.services.connectors.static_demo",
+            "app.services.connectors.weibo",
+            "app.services.dashboard",
+            "app.services.datasource_fetch",
+            "app.services.ingestion",
+            "app.services.reports",
+            "app.services.scheduler",
+            "app.services.scoring",
+            "app.services.tickets"
+        ],
+        "imports": [
+            "app",
+            "app.db",
+            "app.db.session",
+            "app.models",
+            "app.models.user",
+            "sqlalchemy",
+            "sqlalchemy.orm"
+        ],
+        "name": "app.models.datasource",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\models\\datasource.py"
+    },
+    "app.models.report": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.api.reports",
+            "app.models",
+            "app.schemas.reports",
+            "app.services.reports"
+        ],
+        "imports": [
+            "app",
+            "app.db",
+            "app.db.session",
+            "app.models",
+            "app.models.user",
+            "sqlalchemy",
+            "sqlalchemy.orm"
+        ],
+        "name": "app.models.report",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\models\\report.py"
+    },
+    "app.models.role_codes": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.api.alerts",
+            "app.api.audit",
+            "app.api.datasources",
+            "app.api.deps",
+            "app.api.imports",
+            "app.api.opinions",
+            "app.api.protected",
+            "app.api.reports",
+            "app.api.rules",
+            "app.api.tickets",
+            "app.api.users",
+            "app.services.bootstrap",
+            "app.services.dashboard",
+            "app.services.tickets",
+            "app.web.routes"
+        ],
+        "name": "app.models.role_codes",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\models\\role_codes.py"
+    },
+    "app.models.rule": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.api.rules",
+            "app.models",
+            "app.services.bootstrap",
+            "app.services.scoring"
+        ],
+        "imports": [
+            "app",
+            "app.db",
+            "app.db.session",
+            "app.models",
+            "app.models.user",
+            "sqlalchemy",
+            "sqlalchemy.orm"
+        ],
+        "name": "app.models.rule",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\models\\rule.py"
+    },
+    "app.models.ticket": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.models",
+            "app.schemas.tickets",
+            "app.services.dashboard",
+            "app.services.tickets"
+        ],
+        "imports": [
+            "app",
+            "app.db",
+            "app.db.session",
+            "app.models",
+            "app.models.user",
+            "sqlalchemy",
+            "sqlalchemy.orm"
+        ],
+        "name": "app.models.ticket",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\models\\ticket.py"
+    },
+    "app.models.user": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.api.alerts",
+            "app.api.audit",
+            "app.api.auth",
+            "app.api.dashboard",
+            "app.api.datasources",
+            "app.api.deps",
+            "app.api.imports",
+            "app.api.opinions",
+            "app.api.protected",
+            "app.api.reports",
+            "app.api.rules",
+            "app.api.tickets",
+            "app.api.users",
+            "app.models",
+            "app.models.alert",
+            "app.models.analysis",
+            "app.models.audit",
+            "app.models.datasource",
+            "app.models.report",
+            "app.models.rule",
+            "app.models.ticket",
+            "app.services.alerts",
+            "app.services.audit",
+            "app.services.bootstrap",
+            "app.services.dashboard",
+            "app.services.datasource_fetch",
+            "app.services.reports",
+            "app.services.tickets",
+            "app.web.routes"
+        ],
+        "imports": [
+            "app",
+            "app.db",
+            "app.db.session",
+            "sqlalchemy",
+            "sqlalchemy.orm"
+        ],
+        "name": "app.models.user",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\models\\user.py"
+    },
+    "app.schemas": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.api.alerts",
+            "app.api.audit",
+            "app.api.auth",
+            "app.api.dashboard",
+            "app.api.datasources",
+            "app.api.imports",
+            "app.api.opinions",
+            "app.api.reports",
+            "app.api.rules",
+            "app.api.tickets",
+            "app.api.users",
+            "app.schemas.opinions",
+            "app.services.dashboard"
+        ],
+        "name": "app.schemas",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\schemas\\__init__.py"
+    },
+    "app.schemas.alerts": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.api.alerts"
+        ],
+        "imports": [
+            "app",
+            "app.models",
+            "app.models.alert",
+            "pydantic"
+        ],
+        "name": "app.schemas.alerts",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\schemas\\alerts.py"
+    },
+    "app.schemas.analysis": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.api.opinions",
+            "app.schemas.opinions"
+        ],
+        "imports": [
+            "pydantic"
+        ],
+        "name": "app.schemas.analysis",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\schemas\\analysis.py"
+    },
+    "app.schemas.audit": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.api.audit"
+        ],
+        "imports": [
+            "pydantic"
+        ],
+        "name": "app.schemas.audit",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\schemas\\audit.py"
+    },
+    "app.schemas.auth": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.api.auth"
+        ],
+        "imports": [
+            "pydantic"
+        ],
+        "name": "app.schemas.auth",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\schemas\\auth.py"
+    },
+    "app.schemas.dashboard": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.api.dashboard",
+            "app.services.dashboard"
+        ],
+        "imports": [
+            "pydantic"
+        ],
+        "name": "app.schemas.dashboard",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\schemas\\dashboard.py"
+    },
+    "app.schemas.datasources": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.api.datasources"
+        ],
+        "imports": [
+            "app",
+            "app.services",
+            "app.services.connectors",
+            "pydantic"
+        ],
+        "name": "app.schemas.datasources",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\schemas\\datasources.py"
+    },
+    "app.schemas.imports": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.api.imports"
+        ],
+        "imports": [
+            "pydantic"
+        ],
+        "name": "app.schemas.imports",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\schemas\\imports.py"
+    },
+    "app.schemas.opinions": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.api.opinions"
+        ],
+        "imports": [
+            "app",
+            "app.schemas",
+            "app.schemas.analysis",
+            "pydantic"
+        ],
+        "name": "app.schemas.opinions",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\schemas\\opinions.py"
+    },
+    "app.schemas.reports": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.api.reports"
+        ],
+        "imports": [
+            "app",
+            "app.models",
+            "app.models.report",
+            "pydantic"
+        ],
+        "name": "app.schemas.reports",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\schemas\\reports.py"
+    },
+    "app.schemas.rules": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.api.rules"
+        ],
+        "imports": [
+            "pydantic"
+        ],
+        "name": "app.schemas.rules",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\schemas\\rules.py"
+    },
+    "app.schemas.tickets": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.api.tickets"
+        ],
+        "imports": [
+            "app",
+            "app.models",
+            "app.models.ticket",
+            "pydantic"
+        ],
+        "name": "app.schemas.tickets",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\schemas\\tickets.py"
+    },
+    "app.schemas.users": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.api.users"
+        ],
+        "imports": [
+            "pydantic"
+        ],
+        "name": "app.schemas.users",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\schemas\\users.py"
+    },
+    "app.services": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.api.alerts",
+            "app.api.audit",
+            "app.api.auth",
+            "app.api.dashboard",
+            "app.api.datasources",
+            "app.api.imports",
+            "app.api.opinions",
+            "app.api.reports",
+            "app.api.rules",
+            "app.api.tickets",
+            "app.api.users",
+            "app.main",
+            "app.schemas.datasources",
+            "app.services.analysis",
+            "app.services.connectors",
+            "app.services.connectors.json_url",
+            "app.services.connectors.rss",
+            "app.services.connectors.static_demo",
+            "app.services.connectors.weibo",
+            "app.services.datasource_fetch",
+            "app.services.importers",
+            "app.services.ingestion",
+            "app.services.nlp",
+            "app.services.nlp.keyword",
+            "app.services.scheduler",
+            "app.services.scoring"
+        ],
+        "name": "app.services",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\services\\__init__.py"
+    },
+    "app.services.alerts": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.api.alerts",
+            "app.api.tickets",
+            "app.services.analysis"
+        ],
+        "imports": [
+            "app",
+            "app.models",
+            "app.models.alert",
+            "app.models.analysis",
+            "app.models.datasource",
+            "app.models.user",
+            "sqlalchemy",
+            "sqlalchemy.orm",
+            "sqlalchemy.orm.Session"
+        ],
+        "name": "app.services.alerts",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\services\\alerts.py"
+    },
+    "app.services.analysis": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.api.imports",
+            "app.api.opinions",
+            "app.services.datasource_fetch"
+        ],
+        "imports": [
+            "app",
+            "app.models",
+            "app.models.analysis",
+            "app.models.datasource",
+            "app.services",
+            "app.services.alerts",
+            "app.services.nlp",
+            "app.services.scoring",
+            "sqlalchemy",
+            "sqlalchemy.orm",
+            "sqlalchemy.orm.Session"
+        ],
+        "name": "app.services.analysis",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\services\\analysis.py"
+    },
+    "app.services.audit": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.api.alerts",
+            "app.api.audit",
+            "app.api.auth",
+            "app.api.datasources",
+            "app.api.imports",
+            "app.api.opinions",
+            "app.api.reports",
+            "app.api.rules",
+            "app.api.tickets",
+            "app.api.users",
+            "app.services.datasource_fetch"
+        ],
+        "imports": [
+            "app",
+            "app.models",
+            "app.models.audit",
+            "app.models.user",
+            "sqlalchemy",
+            "sqlalchemy.orm",
+            "sqlalchemy.orm.Session"
+        ],
+        "name": "app.services.audit",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\services\\audit.py"
+    },
+    "app.services.bootstrap": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.main"
+        ],
+        "imports": [
+            "app",
+            "app.core",
+            "app.core.config",
+            "app.core.security",
+            "app.db",
+            "app.db.session",
+            "app.models",
+            "app.models.audit",
+            "app.models.datasource",
+            "app.models.role_codes",
+            "app.models.rule",
+            "app.models.user",
+            "sqlalchemy",
+            "sqlalchemy.orm",
+            "sqlalchemy.orm.Session"
+        ],
+        "name": "app.services.bootstrap",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\services\\bootstrap.py"
+    },
+    "app.services.connectors": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.api.imports",
+            "app.schemas.datasources",
+            "app.services.connectors",
+            "app.services.connectors.json_url",
+            "app.services.connectors.rss",
+            "app.services.connectors.static_demo",
+            "app.services.connectors.weibo",
+            "app.services.datasource_fetch",
+            "app.services.importers",
+            "app.services.ingestion"
+        ],
+        "imports": [
+            "app",
+            "app.models",
+            "app.models.datasource",
+            "app.services",
+            "app.services.connectors",
+            "app.services.connectors.json_url",
+            "app.services.connectors.rss",
+            "app.services.connectors.static_demo",
+            "app.services.connectors.weibo"
+        ],
+        "name": "app.services.connectors",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\services\\connectors\\__init__.py"
+    },
+    "app.services.connectors.json_url": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.services.connectors"
+        ],
+        "imports": [
+            "app",
+            "app.models",
+            "app.models.datasource",
+            "app.services",
+            "app.services.connectors",
+            "httpx"
+        ],
+        "name": "app.services.connectors.json_url",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\services\\connectors\\json_url.py"
+    },
+    "app.services.connectors.rss": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.services.connectors"
+        ],
+        "imports": [
+            "app",
+            "app.models",
+            "app.models.datasource",
+            "app.services",
+            "app.services.connectors",
+            "httpx"
+        ],
+        "name": "app.services.connectors.rss",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\services\\connectors\\rss.py"
+    },
+    "app.services.connectors.static_demo": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.services.connectors"
+        ],
+        "imports": [
+            "app",
+            "app.models",
+            "app.models.datasource",
+            "app.services",
+            "app.services.connectors"
+        ],
+        "name": "app.services.connectors.static_demo",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\services\\connectors\\static_demo.py"
+    },
+    "app.services.connectors.weibo": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.services.connectors"
+        ],
+        "imports": [
+            "app",
+            "app.models",
+            "app.models.datasource",
+            "app.services",
+            "app.services.connectors",
+            "httpx"
+        ],
+        "name": "app.services.connectors.weibo",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\services\\connectors\\weibo.py"
+    },
+    "app.services.dashboard": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.api.dashboard"
+        ],
+        "imports": [
+            "app",
+            "app.models",
+            "app.models.alert",
+            "app.models.analysis",
+            "app.models.datasource",
+            "app.models.role_codes",
+            "app.models.ticket",
+            "app.models.user",
+            "app.schemas",
+            "app.schemas.dashboard",
+            "sqlalchemy",
+            "sqlalchemy.orm",
+            "sqlalchemy.orm.Session"
+        ],
+        "name": "app.services.dashboard",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\services\\dashboard.py"
+    },
+    "app.services.datasource_fetch": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.api.datasources",
+            "app.services.scheduler"
+        ],
+        "imports": [
+            "app",
+            "app.models",
+            "app.models.datasource",
+            "app.models.user",
+            "app.services",
+            "app.services.analysis",
+            "app.services.audit",
+            "app.services.connectors",
+            "app.services.ingestion",
+            "sqlalchemy",
+            "sqlalchemy.orm",
+            "sqlalchemy.orm.Session"
+        ],
+        "name": "app.services.datasource_fetch",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\services\\datasource_fetch.py"
+    },
+    "app.services.importers": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.api.imports"
+        ],
+        "imports": [
+            "app",
+            "app.services",
+            "app.services.connectors"
+        ],
+        "name": "app.services.importers",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\services\\importers.py"
+    },
+    "app.services.ingestion": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.api.imports",
+            "app.services.datasource_fetch"
+        ],
+        "imports": [
+            "app",
+            "app.models",
+            "app.models.datasource",
+            "app.services",
+            "app.services.connectors",
+            "sqlalchemy",
+            "sqlalchemy.orm",
+            "sqlalchemy.orm.Session"
+        ],
+        "name": "app.services.ingestion",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\services\\ingestion.py"
+    },
+    "app.services.nlp": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.services.analysis",
+            "app.services.nlp",
+            "app.services.nlp.keyword",
+            "app.services.scoring"
+        ],
+        "imports": [
+            "app",
+            "app.core",
+            "app.core.config",
+            "app.services",
+            "app.services.nlp",
+            "app.services.nlp.base",
+            "app.services.nlp.exceptions",
+            "app.services.nlp.keyword"
+        ],
+        "name": "app.services.nlp",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\services\\nlp\\__init__.py"
+    },
+    "app.services.nlp.base": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.services.nlp",
+            "app.services.nlp.keyword",
+            "app.services.scoring"
+        ],
+        "name": "app.services.nlp.base",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\services\\nlp\\base.py"
+    },
+    "app.services.nlp.exceptions": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.services.nlp",
+            "app.services.nlp.keyword"
+        ],
+        "name": "app.services.nlp.exceptions",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\services\\nlp\\exceptions.py"
+    },
+    "app.services.nlp.keyword": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.services.nlp"
+        ],
+        "imports": [
+            "app",
+            "app.services",
+            "app.services.nlp",
+            "app.services.nlp.base",
+            "app.services.nlp.exceptions"
+        ],
+        "name": "app.services.nlp.keyword",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\services\\nlp\\keyword.py"
+    },
+    "app.services.reports": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.api.reports"
+        ],
+        "imports": [
+            "app",
+            "app.core",
+            "app.core.config",
+            "app.db",
+            "app.db.session",
+            "app.models",
+            "app.models.analysis",
+            "app.models.datasource",
+            "app.models.report",
+            "app.models.user",
+            "openpyxl",
+            "openpyxl.Workbook",
+            "openpyxl.styles",
+            "openpyxl.styles.Alignment",
+            "openpyxl.utils",
+            "sqlalchemy",
+            "sqlalchemy.orm",
+            "sqlalchemy.orm.Session"
+        ],
+        "name": "app.services.reports",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\services\\reports.py"
+    },
+    "app.services.scheduler": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.main"
+        ],
+        "imports": [
+            "app",
+            "app.core",
+            "app.core.config",
+            "app.db",
+            "app.db.session",
+            "app.models",
+            "app.models.datasource",
+            "app.services",
+            "app.services.datasource_fetch"
+        ],
+        "name": "app.services.scheduler",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\services\\scheduler.py"
+    },
+    "app.services.scoring": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.services.analysis"
+        ],
+        "imports": [
+            "app",
+            "app.models",
+            "app.models.analysis",
+            "app.models.datasource",
+            "app.models.rule",
+            "app.services",
+            "app.services.nlp",
+            "app.services.nlp.base",
+            "sqlalchemy",
+            "sqlalchemy.orm",
+            "sqlalchemy.orm.Session"
+        ],
+        "name": "app.services.scoring",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\services\\scoring.py"
+    },
+    "app.services.tickets": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.api.tickets"
+        ],
+        "imports": [
+            "app",
+            "app.models",
+            "app.models.alert",
+            "app.models.analysis",
+            "app.models.datasource",
+            "app.models.role_codes",
+            "app.models.ticket",
+            "app.models.user",
+            "sqlalchemy",
+            "sqlalchemy.orm",
+            "sqlalchemy.orm.Session"
+        ],
+        "name": "app.services.tickets",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\services\\tickets.py"
+    },
+    "app.web": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.main"
+        ],
+        "name": "app.web",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\web\\__init__.py"
+    },
+    "app.web.routes": {
+        "bacon": 1,
+        "imported_by": [
+            "__main__",
+            "app.main"
+        ],
+        "imports": [
+            "app",
+            "app.api",
+            "app.api.deps",
+            "app.core",
+            "app.core.security",
+            "app.db",
+            "app.db.session",
+            "app.models",
+            "app.models.role_codes",
+            "app.models.user",
+            "fastapi",
+            "fastapi.responses",
+            "fastapi.templating",
+            "sqlalchemy",
+            "sqlalchemy.orm",
+            "sqlalchemy.orm.Session"
+        ],
+        "name": "app.web.routes",
+        "path": "C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\backend\\app\\web\\routes.py"
+    },
+    "fastapi": {
+        "bacon": 2,
+        "imported_by": [
+            "app.api.alerts",
+            "app.api.audit",
+            "app.api.auth",
+            "app.api.dashboard",
+            "app.api.datasources",
+            "app.api.deps",
+            "app.api.imports",
+            "app.api.opinions",
+            "app.api.protected",
+            "app.api.reports",
+            "app.api.rules",
+            "app.api.tickets",
+            "app.api.users",
+            "app.main",
+            "app.web.routes"
+        ],
+        "imports": [
+            "fastapi.responses"
+        ],
+        "name": "fastapi",
+        "path": "C:\\Users\\Zhang\\CodeTools\\anaconda3\\Lib\\site-packages\\fastapi\\__init__.py"
+    },
+    "fastapi.responses": {
+        "bacon": 2,
+        "imported_by": [
+            "app.api.reports",
+            "app.web.routes",
+            "fastapi"
+        ],
+        "name": "fastapi.responses",
+        "path": "C:\\Users\\Zhang\\CodeTools\\anaconda3\\Lib\\site-packages\\fastapi\\responses.py"
+    },
+    "fastapi.security": {
+        "bacon": 2,
+        "imported_by": [
+            "app.api.deps"
+        ],
+        "name": "fastapi.security",
+        "path": "C:\\Users\\Zhang\\CodeTools\\anaconda3\\Lib\\site-packages\\fastapi\\security\\__init__.py"
+    },
+    "fastapi.staticfiles": {
+        "bacon": 2,
+        "imported_by": [
+            "app.main"
+        ],
+        "name": "fastapi.staticfiles",
+        "path": "C:\\Users\\Zhang\\CodeTools\\anaconda3\\Lib\\site-packages\\fastapi\\staticfiles.py"
+    },
+    "fastapi.templating": {
+        "bacon": 2,
+        "imported_by": [
+            "app.web.routes"
+        ],
+        "name": "fastapi.templating",
+        "path": "C:\\Users\\Zhang\\CodeTools\\anaconda3\\Lib\\site-packages\\fastapi\\templating.py"
+    },
+    "httpx": {
+        "bacon": 2,
+        "imported_by": [
+            "app.services.connectors.json_url",
+            "app.services.connectors.rss",
+            "app.services.connectors.weibo"
+        ],
+        "name": "httpx",
+        "path": "C:\\Users\\Zhang\\CodeTools\\anaconda3\\Lib\\site-packages\\httpx\\__init__.py"
+    },
+    "jose": {
+        "bacon": 2,
+        "imported_by": [
+            "app.core.security",
+            "jose.jwt"
+        ],
+        "name": "jose",
+        "path": "C:\\Users\\Zhang\\CodeTools\\anaconda3\\Lib\\site-packages\\jose\\__init__.py"
+    },
+    "jose.jwt": {
+        "bacon": 2,
+        "imported_by": [
+            "app.core.security"
+        ],
+        "imports": [
+            "jose"
+        ],
+        "name": "jose.jwt",
+        "path": "C:\\Users\\Zhang\\CodeTools\\anaconda3\\Lib\\site-packages\\jose\\jwt.py"
+    },
+    "openpyxl": {
+        "bacon": 2,
+        "imported_by": [
+            "app.services.reports",
+            "openpyxl",
+            "openpyxl.styles.Alignment"
+        ],
+        "imports": [
+            "openpyxl"
+        ],
+        "name": "openpyxl",
+        "path": "C:\\Users\\Zhang\\CodeTools\\anaconda3\\Lib\\site-packages\\openpyxl\\__init__.py"
+    },
+    "openpyxl.Workbook": {
+        "bacon": 2,
+        "imported_by": [
+            "app.services.reports"
+        ],
+        "name": "openpyxl.Workbook",
+        "path": "C:\\Users\\Zhang\\CodeTools\\anaconda3\\Lib\\site-packages\\openpyxl\\Workbook\\__init__.py"
+    },
+    "openpyxl.styles": {
+        "bacon": 2,
+        "imported_by": [
+            "app.services.reports"
+        ],
+        "name": "openpyxl.styles",
+        "path": "C:\\Users\\Zhang\\CodeTools\\anaconda3\\Lib\\site-packages\\openpyxl\\styles\\__init__.py"
+    },
+    "openpyxl.styles.Alignment": {
+        "bacon": 2,
+        "imported_by": [
+            "app.services.reports"
+        ],
+        "imports": [
+            "openpyxl"
+        ],
+        "name": "openpyxl.styles.Alignment",
+        "path": "C:\\Users\\Zhang\\CodeTools\\anaconda3\\Lib\\site-packages\\openpyxl\\styles\\Alignment.py"
+    },
+    "openpyxl.utils": {
+        "bacon": 2,
+        "imported_by": [
+            "app.services.reports"
+        ],
+        "name": "openpyxl.utils",
+        "path": "C:\\Users\\Zhang\\CodeTools\\anaconda3\\Lib\\site-packages\\openpyxl\\utils\\__init__.py"
+    },
+    "passlib": {
+        "bacon": 2,
+        "imported_by": [
+            "app.core.security",
+            "passlib.context"
+        ],
+        "name": "passlib",
+        "path": "C:\\Users\\Zhang\\CodeTools\\anaconda3\\Lib\\site-packages\\passlib\\__init__.py"
+    },
+    "passlib.context": {
+        "bacon": 2,
+        "imported_by": [
+            "app.core.security"
+        ],
+        "imports": [
+            "passlib"
+        ],
+        "name": "passlib.context",
+        "path": "C:\\Users\\Zhang\\CodeTools\\anaconda3\\Lib\\site-packages\\passlib\\context.py"
+    },
+    "pydantic": {
+        "bacon": 2,
+        "imported_by": [
+            "app.schemas.alerts",
+            "app.schemas.analysis",
+            "app.schemas.audit",
+            "app.schemas.auth",
+            "app.schemas.dashboard",
+            "app.schemas.datasources",
+            "app.schemas.imports",
+            "app.schemas.opinions",
+            "app.schemas.reports",
+            "app.schemas.rules",
+            "app.schemas.tickets",
+            "app.schemas.users",
+            "pydantic"
+        ],
+        "imports": [
+            "pydantic"
+        ],
+        "name": "pydantic",
+        "path": "C:\\Users\\Zhang\\CodeTools\\anaconda3\\Lib\\site-packages\\pydantic\\__init__.py"
+    },
+    "pydantic_settings": {
+        "bacon": 2,
+        "imported_by": [
+            "app.core.config"
+        ],
+        "name": "pydantic_settings",
+        "path": "C:\\Users\\Zhang\\CodeTools\\anaconda3\\Lib\\site-packages\\pydantic_settings\\__init__.py"
+    },
+    "sqlalchemy": {
+        "bacon": 2,
+        "imported_by": [
+            "app.api.alerts",
+            "app.api.audit",
+            "app.api.auth",
+            "app.api.dashboard",
+            "app.api.datasources",
+            "app.api.deps",
+            "app.api.imports",
+            "app.api.opinions",
+            "app.api.reports",
+            "app.api.rules",
+            "app.api.tickets",
+            "app.api.users",
+            "app.db.session",
+            "app.models.alert",
+            "app.models.analysis",
+            "app.models.audit",
+            "app.models.datasource",
+            "app.models.report",
+            "app.models.rule",
+            "app.models.ticket",
+            "app.models.user",
+            "app.services.alerts",
+            "app.services.analysis",
+            "app.services.audit",
+            "app.services.bootstrap",
+            "app.services.dashboard",
+            "app.services.datasource_fetch",
+            "app.services.ingestion",
+            "app.services.reports",
+            "app.services.scoring",
+            "app.services.tickets",
+            "app.web.routes",
+            "sqlalchemy",
+            "sqlalchemy.orm",
+            "sqlalchemy.orm.Session"
+        ],
+        "imports": [
+            "sqlalchemy"
+        ],
+        "name": "sqlalchemy",
+        "path": "C:\\Users\\Zhang\\CodeTools\\anaconda3\\Lib\\site-packages\\sqlalchemy\\__init__.py"
+    },
+    "sqlalchemy.orm": {
+        "bacon": 2,
+        "imported_by": [
+            "app.api.alerts",
+            "app.api.audit",
+            "app.api.auth",
+            "app.api.dashboard",
+            "app.api.datasources",
+            "app.api.deps",
+            "app.api.imports",
+            "app.api.opinions",
+            "app.api.reports",
+            "app.api.rules",
+            "app.api.tickets",
+            "app.api.users",
+            "app.db.session",
+            "app.models.alert",
+            "app.models.analysis",
+            "app.models.audit",
+            "app.models.datasource",
+            "app.models.report",
+            "app.models.rule",
+            "app.models.ticket",
+            "app.models.user",
+            "app.services.alerts",
+            "app.services.analysis",
+            "app.services.audit",
+            "app.services.bootstrap",
+            "app.services.dashboard",
+            "app.services.datasource_fetch",
+            "app.services.ingestion",
+            "app.services.reports",
+            "app.services.scoring",
+            "app.services.tickets",
+            "app.web.routes",
+            "sqlalchemy.orm",
+            "sqlalchemy.orm.Session"
+        ],
+        "imports": [
+            "sqlalchemy",
+            "sqlalchemy.orm"
+        ],
+        "name": "sqlalchemy.orm",
+        "path": "C:\\Users\\Zhang\\CodeTools\\anaconda3\\Lib\\site-packages\\sqlalchemy\\orm\\__init__.py"
+    },
+    "sqlalchemy.orm.Session": {
+        "bacon": 2,
+        "imported_by": [
+            "app.api.alerts",
+            "app.api.audit",
+            "app.api.auth",
+            "app.api.dashboard",
+            "app.api.datasources",
+            "app.api.deps",
+            "app.api.imports",
+            "app.api.opinions",
+            "app.api.reports",
+            "app.api.rules",
+            "app.api.tickets",
+            "app.api.users",
+            "app.db.session",
+            "app.services.alerts",
+            "app.services.analysis",
+            "app.services.audit",
+            "app.services.bootstrap",
+            "app.services.dashboard",
+            "app.services.datasource_fetch",
+            "app.services.ingestion",
+            "app.services.reports",
+            "app.services.scoring",
+            "app.services.tickets",
+            "app.web.routes"
+        ],
+        "imports": [
+            "sqlalchemy",
+            "sqlalchemy.orm"
+        ],
+        "name": "sqlalchemy.orm.Session",
+        "path": "C:\\Users\\Zhang\\CodeTools\\anaconda3\\Lib\\site-packages\\sqlalchemy\\orm\\Session.py"
+    }
+}'dot' 不是内部或外部命令，也不是可运行的程序
+或批处理文件。
+
+	ERROR: Graphviz 'dot' produced empty output for 'C:\\Users\\Zhang\\Desktop\\SA_hw\\new\\app.svg'; the dependency graph could not be rendered.
+
+
+
