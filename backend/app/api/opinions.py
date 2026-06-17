@@ -41,6 +41,7 @@ from app.services.analysis import (
     pending_opinions,
 )
 from app.services.audit import get_client_ip, record_audit
+from app.services.opinion_search import search_opinion_ids
 
 
 router = APIRouter(prefix="/api/opinions", tags=["opinions"])
@@ -139,8 +140,12 @@ def list_opinions(
 
     query = db.query(OpinionItem)
     if q:
-        like = f"%{q}%"
-        query = query.filter(or_(OpinionItem.title.like(like), OpinionItem.content.like(like)))
+        fts_ids = search_opinion_ids(db, q)
+        if fts_ids is None:
+            like = f"%{q}%"
+            query = query.filter(or_(OpinionItem.title.like(like), OpinionItem.content.like(like)))
+        else:
+            query = query.filter(OpinionItem.id.in_(fts_ids if fts_ids else [-1]))
     if source_id is not None:
         query = query.filter(OpinionItem.source_id == source_id)
     if source_code:

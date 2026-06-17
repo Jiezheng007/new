@@ -26,9 +26,10 @@ import pytest
 from openpyxl import load_workbook
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.db import session as session_module
 from app.models.audit import AuditLog
-from app.models.datasource import DataSource
+from app.models.datasource import DataSource, OpinionItem
 from app.models.report import (
     REPORT_STATUS_COMPLETED,
     REPORT_STATUS_FAILED,
@@ -36,6 +37,7 @@ from app.models.report import (
     REPORT_STATUS_PENDING,
     ReportTask,
 )
+from app.models.user import User
 from app.services.reports import process_report_task
 
 
@@ -355,6 +357,152 @@ def test_worker_records_matched_count_for_filtered_dataset(client, report_storag
     assert task.matched_count >= 1
     # The 'high' filter must NOT have matched anything else.
     assert task.included_count == task.matched_count
+
+
+def test_worker_fails_before_excel_when_matched_rows_exceed_limit(
+    client,
+    report_storage,
+    monkeypatch,
+    request,
+):
+    monkeypatch.setenv("REPORT_MAX_ROWS", "2")
+    get_settings.cache_clear()
+    request.addfinalizer(get_settings.cache_clear)
+
+    db = _session()
+    try:
+        source = db.query(DataSource).filter(DataSource.code == "demo_static").one()
+        risk_user = db.query(User).filter_by(username="risk").one()
+        db.add_all([
+            OpinionItem(
+                source_id=source.id,
+                source_code=source.code,
+                source_type=source.source_type,
+                external_id=f"report-limit-{idx}",
+                title=f"report limit {idx}",
+                content="report limit content",
+                content_hash=f"report-limit-{idx}",
+            )
+            for idx in range(3)
+        ])
+        task = ReportTask(
+            title="too many rows",
+            status=REPORT_STATUS_PENDING,
+            created_by_id=risk_user.id,
+            created_by_username=risk_user.username,
+        )
+        db.add(task)
+        db.commit()
+        task_id = task.id
+    finally:
+        db.close()
+
+    def should_not_write(*args, **kwargs):
+        raise AssertionError("_write_excel should not run for oversized reports")
+
+    monkeypatch.setattr("app.services.reports._write_excel", should_not_write)
+    process_report_task(task_id)
+
+    task = _fetch_task(task_id)
+    assert task.status == REPORT_STATUS_FAILED
+    assert task.matched_count == 3
+    assert task.included_count == 0
+    assert task.file_path == ""
+    assert task.file_size_bytes == 0
+    assert "3" in task.error_message
+    assert "2" in task.error_message
+    assert "exceed" in task.error_message.lower() or "超过" in task.error_message
+
+
+def test_worker_streams_matching_opinions_without_query_all(
+    client,
+    report_storage,
+    monkeypatch,
+    request,
+):
+    monkeypatch.setenv("REPORT_MAX_ROWS", "10")
+    get_settings.cache_clear()
+    request.addfinalizer(get_settings.cache_clear)
+
+    db = _session()
+    try:
+        source = db.query(DataSource).filter(DataSource.code == "demo_static").one()
+        risk_user = db.query(User).filter_by(username="risk").one()
+        db.add_all([
+            OpinionItem(
+                source_id=source.id,
+                source_code=source.code,
+                source_type=source.source_type,
+                external_id=f"report-stream-{idx}",
+                title=f"report stream {idx}",
+                content="report stream content",
+                content_hash=f"report-stream-{idx}",
+            )
+            for idx in range(3)
+        ])
+        task = ReportTask(
+            title="stream rows",
+            status=REPORT_STATUS_PENDING,
+            created_by_id=risk_user.id,
+            created_by_username=risk_user.username,
+        )
+        db.add(task)
+        db.commit()
+        task_id = task.id
+    finally:
+        db.close()
+
+    from sqlalchemy.orm import Query
+
+    original_all = Query.all
+
+    def fail_opinion_all(self):
+        entities = {desc.get("entity") for desc in self.column_descriptions}
+        if OpinionItem in entities:
+            raise AssertionError("process_report_task must not call .all() for report opinions")
+        return original_all(self)
+
+    def fake_write_excel(task, opinions, output_path, matched_count):
+        assert not isinstance(opinions, list)
+        assert matched_count == 3
+        assert sum(1 for _ in opinions) == 3
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_bytes(b"ok")
+        return output_path.stat().st_size
+
+    monkeypatch.setattr(Query, "all", fail_opinion_all)
+    monkeypatch.setattr("app.services.reports._write_excel", fake_write_excel)
+
+    process_report_task(task_id)
+
+    task = _fetch_task(task_id)
+    assert task.status == REPORT_STATUS_COMPLETED
+    assert task.matched_count == 3
+    assert task.included_count == 3
+
+
+def test_excel_writer_does_not_autosize_detail_sheet(client, report_storage, monkeypatch):
+    _seed_static_demo(client)
+    task_id = _create_report_via_api(client, title="fixed-detail-widths")
+    db = _session()
+    try:
+        task = db.get(ReportTask, task_id)
+        task.status = REPORT_STATUS_PENDING
+        db.commit()
+    finally:
+        db.close()
+
+    autosized_titles: list[str] = []
+
+    def record_autosize(ws):
+        autosized_titles.append(ws.title)
+
+    monkeypatch.setattr("app.services.reports._autosize", record_autosize)
+    process_report_task(task_id)
+
+    task = _fetch_task(task_id)
+    assert task.status == REPORT_STATUS_COMPLETED
+    assert autosized_titles == ["概览", "汇总"]
 
 
 # ---------- generated Excel content ----------

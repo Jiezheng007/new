@@ -11,6 +11,7 @@ from app.models.datasource import DataSource
 from app.models.role_codes import ROLE_SEEDS, RoleCode
 from app.models.rule import RiskThreshold, SensitiveKeyword, SubjectKeyword
 from app.models.user import Role, User
+from app.services.opinion_search import ensure_opinion_fts
 
 
 _DEMO_USERS: list[tuple[str, str, str, str]] = [
@@ -108,6 +109,8 @@ def init_db() -> None:
         _seed_admin(db)
         db.commit()
         _seed_demo_users(db)
+        db.commit()
+        ensure_opinion_fts(db)
         db.commit()
 
 

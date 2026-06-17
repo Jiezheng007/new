@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 
+from sqlalchemy import event
 from sqlalchemy.orm import Session
 
 from app.db import session as session_module
@@ -707,6 +708,49 @@ def test_list_opinions_keyword_filter(client):
     body = res.json()
     assert body["total"] == 1
     assert "财报" in body["items"][0]["title"]
+
+
+def test_list_opinions_uses_fts_for_ascii_keyword(client):
+    client.post("/api/auth/login", json={"username": "risk", "password": "risk123"})
+    db = Session(_engine())
+    try:
+        source = db.query(DataSource).filter(DataSource.code == "import_csv").one()
+        db.add(OpinionItem(
+            source_id=source.id,
+            source_code=source.code,
+            source_type=source.source_type,
+            title="Alpha rocket launch",
+            content="UniqueToken safety telemetry",
+            content_hash="fts-ascii-keyword",
+            origin="import_csv",
+        ))
+        db.commit()
+    finally:
+        db.close()
+
+    statements: list[str] = []
+
+    def capture(_conn, _cursor, statement, _parameters, _context, _executemany):
+        statements.append(statement.lower())
+
+    event.listen(_engine(), "before_cursor_execute", capture)
+    try:
+        res = client.get("/api/opinions?q=UniqueToken")
+    finally:
+        event.remove(_engine(), "before_cursor_execute", capture)
+
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["total"] == 1
+    assert body["items"][0]["title"] == "Alpha rocket launch"
+
+    opinion_count_selects = [
+        statement for statement in statements
+        if "from opinion_items" in statement and "count" in statement
+    ]
+    assert opinion_count_selects
+    assert not any(" like " in statement for statement in opinion_count_selects)
+    assert any("opinion_item_fts" in statement and " match " in statement for statement in statements)
 
 
 def test_list_opinions_source_filter(client):

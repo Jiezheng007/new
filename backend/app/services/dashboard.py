@@ -22,12 +22,14 @@ Why a separate module:
 """
 from __future__ import annotations
 
+import time
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Optional
 
-from sqlalchemy import func, literal_column
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.models.alert import (
     ALERT_STATUS_CONFIRMED,
     ALERT_STATUS_IGNORED,
@@ -61,6 +63,9 @@ TREND_WINDOW_DAYS = 7
 # alerts"; five is a comfortable default that fits the workbench card
 # without scrolling.
 LATEST_ALERTS_LIMIT = 5
+
+_DashboardCacheKey = tuple[str, str, int]
+_dashboard_summary_cache: dict[_DashboardCacheKey, tuple[float, DashboardSummaryOut]] = {}
 
 
 # ---------- permission predicates ----------
@@ -110,19 +115,25 @@ def _opinion_event_dates(db: Session, start_window: datetime) -> list[date]:
     The fallback to ``created_at`` is also Python-side to keep the
     rule in one place.
     """
-    rows = (
+    published_rows = (
         db.query(
             OpinionItem.published_at.label("published_at"),
             OpinionItem.created_at.label("created_at"),
         )
-        .filter(
-            func.coalesce(OpinionItem.published_at, OpinionItem.created_at)
-            >= start_window
+        .filter(OpinionItem.published_at >= start_window)
+        .all()
+    )
+    fallback_rows = (
+        db.query(
+            OpinionItem.published_at.label("published_at"),
+            OpinionItem.created_at.label("created_at"),
         )
+        .filter(OpinionItem.published_at.is_(None))
+        .filter(OpinionItem.created_at >= start_window)
         .all()
     )
     out: list[date] = []
-    for row in rows:
+    for row in [*published_rows, *fallback_rows]:
         ts = row.published_at or row.created_at
         if ts is None:
             continue
@@ -150,7 +161,7 @@ def _opinion_trend(db: Session, today_utc: date) -> list[DashboardTrendPoint]:
     # analysis table. We restrict to successful analyses so a row
     # still in ``pending`` state is not counted as negative just
     # because its default label is unset.
-    analyzed_rows = (
+    analyzed_query = (
         db.query(
             OpinionItem.published_at.label("published_at"),
             OpinionItem.created_at.label("created_at"),
@@ -158,13 +169,14 @@ def _opinion_trend(db: Session, today_utc: date) -> list[DashboardTrendPoint]:
             AnalysisResult.level.label("level"),
         )
         .join(AnalysisResult, AnalysisResult.opinion_item_id == OpinionItem.id)
-        .filter(
-            func.coalesce(OpinionItem.published_at, OpinionItem.created_at)
-            >= start_window
-        )
         .filter(AnalysisResult.status == ANALYSIS_STATUS_SUCCESS)
-        .all()
     )
+    analyzed_rows = [
+        *analyzed_query.filter(OpinionItem.published_at >= start_window).all(),
+        *analyzed_query.filter(OpinionItem.published_at.is_(None))
+        .filter(OpinionItem.created_at >= start_window)
+        .all(),
+    ]
 
     totals: dict[date, int] = {}
     negatives: dict[date, int] = {}
@@ -302,6 +314,23 @@ def _ticket_status_counts(db: Session, viewer: User) -> dict[str, int]:
 # ---------- public entry point ----------
 
 
+def _dashboard_cache_key(db: Session, viewer: User) -> _DashboardCacheKey:
+    bind = db.get_bind()
+    db_scope = str(getattr(bind, "url", ""))
+    return (db_scope, viewer.role.code, int(viewer.id))
+
+
+def _get_cached_dashboard_summary(key: _DashboardCacheKey, now_monotonic: float) -> DashboardSummaryOut | None:
+    cached = _dashboard_summary_cache.get(key)
+    if cached is None:
+        return None
+    expires_at, summary = cached
+    if expires_at <= now_monotonic:
+        _dashboard_summary_cache.pop(key, None)
+        return None
+    return summary
+
+
 def build_dashboard_summary(db: Session, viewer: User) -> DashboardSummaryOut:
     """Assemble the workbench summary for the calling user.
 
@@ -312,6 +341,15 @@ def build_dashboard_summary(db: Session, viewer: User) -> DashboardSummaryOut:
     authenticated roles so the workbench page never 403s for a user
     who is allowed to see it in the nav.
     """
+    settings = get_settings()
+    cache_ttl = max(0, int(settings.dashboard_summary_cache_ttl_seconds))
+    cache_key = _dashboard_cache_key(db, viewer)
+    now_monotonic = time.monotonic()
+    if cache_ttl > 0:
+        cached = _get_cached_dashboard_summary(cache_key, now_monotonic)
+        if cached is not None:
+            return cached
+
     now = datetime.now(timezone.utc)
     today_utc = now.date()
     role_code = viewer.role.code
@@ -376,4 +414,7 @@ def build_dashboard_summary(db: Session, viewer: User) -> DashboardSummaryOut:
             tickets_archived=None,
         )
 
-    return DashboardSummaryOut(**out_kwargs)
+    summary = DashboardSummaryOut(**out_kwargs)
+    if cache_ttl > 0:
+        _dashboard_summary_cache[cache_key] = (now_monotonic + cache_ttl, summary)
+    return summary
