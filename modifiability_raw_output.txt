@@ -1,10 +1,10 @@
 === STATIC ANALYSIS RAW OUTPUT ===
 
 --- 1. Cyclomatic Complexity ---
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\main.py
+C:\Users\Zhang\Desktop\SA_hw\new\backend\app\main.py
     F 18:0 _lifespan - A
     F 27:0 create_app - A
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\api\alerts.py
+C:\Users\Zhang\Desktop\SA_hw\new\backend\app\api\alerts.py
     F 86:0 list_alerts_endpoint - B
     F 210:0 ignore_alert_endpoint - A
     F 153:0 confirm_alert_endpoint - A
@@ -12,20 +12,20 @@ c:\Users\Zhang\Desktop\SA_hw\new\backend\app\api\alerts.py
     F 76:0 _require_alert_writer - A
     F 141:0 get_alert_endpoint - A
     F 127:0 alert_summary_endpoint - A
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\api\audit.py
+C:\Users\Zhang\Desktop\SA_hw\new\backend\app\api\audit.py
     F 66:0 list_audit_logs_endpoint - A
     F 56:0 _require_audit_reader - A
     F 114:0 get_audit_log_endpoint - A
     F 105:0 audit_log_facets_endpoint - A
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\api\auth.py
+C:\Users\Zhang\Desktop\SA_hw\new\backend\app\api\auth.py
     F 104:0 logout - A
     F 33:0 login - A
     F 16:0 _set_cookie - A
     F 28:0 _clear_cookie - A
     F 136:0 me - A
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\api\dashboard.py
+C:\Users\Zhang\Desktop\SA_hw\new\backend\app\api\dashboard.py
     F 34:0 dashboard_summary - A
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\api\datasources.py
+C:\Users\Zhang\Desktop\SA_hw\new\backend\app\api\datasources.py
     F 131:0 update_datasource - C
     F 203:0 manual_fetch - A
     F 33:0 _require_admin - A
@@ -33,7 +33,7 @@ c:\Users\Zhang\Desktop\SA_hw\new\backend\app\api\datasources.py
     F 71:0 create_datasource - A
     F 119:0 get_datasource - A
     F 42:0 _serialize - A
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\api\deps.py
+C:\Users\Zhang\Desktop\SA_hw\new\backend\app\api\deps.py
     F 28:0 get_current_user - B
     F 19:0 _token_from_request - A
     F 86:0 ensure_allowed - A
@@ -41,14 +41,14 @@ c:\Users\Zhang\Desktop\SA_hw\new\backend\app\api\deps.py
     F 64:0 role_permissions - A
     F 68:0 role_nav_items - A
     F 72:0 user_to_dict - A
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\api\imports.py
+C:\Users\Zhang\Desktop\SA_hw\new\backend\app\api\imports.py
     F 139:0 import_json - B
     F 75:0 import_csv - B
     F 212:0 import_demo - B
     F 58:0 _read_upload - A
     F 39:0 _require_importer - A
     F 48:0 _load_import_source - A
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\api\opinions.py
+C:\Users\Zhang\Desktop\SA_hw\new\backend\app\api\opinions.py
     F 119:0 list_opinions - C
     F 229:0 analyze_pending_opinions - A
     F 71:0 _decode_json - A
@@ -58,13 +58,13 @@ c:\Users\Zhang\Desktop\SA_hw\new\backend\app\api\opinions.py
     F 62:0 _require_opinion_analyzer - A
     F 175:0 get_opinion - A
     F 97:0 _serialize - A
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\api\protected.py
+C:\Users\Zhang\Desktop\SA_hw\new\backend\app\api\protected.py
     F 21:0 risk_control_area - A
     F 33:0 handler_area - A
     F 45:0 auditor_area - A
     F 62:0 admin_area - A
     F 57:0 dashboard_area - A
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\api\reports.py
+C:\Users\Zhang\Desktop\SA_hw\new\backend\app\api\reports.py
     F 232:0 download_report_endpoint - B
     F 99:0 list_reports_endpoint - A
     F 160:0 create_report_endpoint - A
@@ -72,7 +72,7 @@ c:\Users\Zhang\Desktop\SA_hw\new\backend\app\api\reports.py
     F 86:0 _require_report_creator - A
     F 141:0 get_report_endpoint - A
     F 126:0 report_summary_endpoint - A
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\api\rules.py
+C:\Users\Zhang\Desktop\SA_hw\new\backend\app\api\rules.py
     F 133:0 update_sensitive_keyword - C
     F 306:0 replace_risk_thresholds - C
     F 247:0 update_subject_keyword - B
@@ -84,7 +84,7 @@ c:\Users\Zhang\Desktop\SA_hw\new\backend\app\api\rules.py
     F 297:0 list_risk_thresholds - A
     F 46:0 _serialize_sensitive - A
     F 59:0 _serialize_subject - A
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\api\tickets.py
+C:\Users\Zhang\Desktop\SA_hw\new\backend\app\api\tickets.py
     F 118:0 list_tickets_endpoint - B
     F 419:0 complete_ticket_endpoint - B
     F 350:0 start_ticket_endpoint - A
@@ -96,7 +96,7 @@ c:\Users\Zhang\Desktop\SA_hw\new\backend\app\api\tickets.py
     F 82:0 _require_ticket_manager - A
     F 91:0 _audit_and_commit - A
     F 160:0 ticket_summary_endpoint - A
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\api\users.py
+C:\Users\Zhang\Desktop\SA_hw\new\backend\app\api\users.py
     F 144:0 update_user - C
     F 66:0 create_user - A
     F 243:0 reset_password - A
@@ -106,10 +106,10 @@ c:\Users\Zhang\Desktop\SA_hw\new\backend\app\api\users.py
     F 132:0 get_user - A
     F 278:0 list_roles - A
     F 42:0 _serialize_user - A
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\core\config.py
+C:\Users\Zhang\Desktop\SA_hw\new\backend\app\core\config.py
     F 21:0 get_settings - A
     C 5:0 Settings - A
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\core\security.py
+C:\Users\Zhang\Desktop\SA_hw\new\backend\app\core\security.py
     F 47:0 verify_password - A
     F 38:0 hash_password - A
     F 56:0 create_access_token - A
@@ -117,33 +117,33 @@ c:\Users\Zhang\Desktop\SA_hw\new\backend\app\core\security.py
     F 29:0 _b64encode - A
     F 33:0 _b64decode - A
     F 77:0 random_token - A
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\db\session.py
-    F 19:0 get_db - A
+C:\Users\Zhang\Desktop\SA_hw\new\backend\app\db\session.py
+    F 26:0 get_db - A
     C 9:0 Base - A
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\models\alert.py
+C:\Users\Zhang\Desktop\SA_hw\new\backend\app\models\alert.py
     C 55:0 Alert - A
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\models\analysis.py
+C:\Users\Zhang\Desktop\SA_hw\new\backend\app\models\analysis.py
     C 41:0 AnalysisResult - A
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\models\audit.py
+C:\Users\Zhang\Desktop\SA_hw\new\backend\app\models\audit.py
     C 11:0 AuditLog - A
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\models\datasource.py
+C:\Users\Zhang\Desktop\SA_hw\new\backend\app\models\datasource.py
     C 30:0 DataSource - A
     C 57:0 OpinionItem - A
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\models\report.py
+C:\Users\Zhang\Desktop\SA_hw\new\backend\app\models\report.py
     C 77:0 ReportTask - A
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\models\role_codes.py
+C:\Users\Zhang\Desktop\SA_hw\new\backend\app\models\role_codes.py
     C 1:0 RoleCode - A
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\models\rule.py
+C:\Users\Zhang\Desktop\SA_hw\new\backend\app\models\rule.py
     C 22:0 SensitiveKeyword - A
     C 39:0 SubjectKeyword - A
     C 55:0 RiskThreshold - A
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\models\ticket.py
+C:\Users\Zhang\Desktop\SA_hw\new\backend\app\models\ticket.py
     C 61:0 Ticket - A
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\models\user.py
+C:\Users\Zhang\Desktop\SA_hw\new\backend\app\models\user.py
     F 9:0 utcnow - A
     C 13:0 Role - A
     C 24:0 User - A
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\schemas\alerts.py
+C:\Users\Zhang\Desktop\SA_hw\new\backend\app\schemas\alerts.py
     C 76:0 AlertIgnoreRequest - A
     C 38:0 AlertOut - A
     M 83:4 AlertIgnoreRequest._check_reason_nonblank - A
@@ -154,7 +154,7 @@ c:\Users\Zhang\Desktop\SA_hw\new\backend\app\schemas\alerts.py
     C 90:0 AlertConfirmResultOut - A
     C 97:0 AlertIgnoreResultOut - A
     C 105:0 AlertSummaryOut - A
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\schemas\analysis.py
+C:\Users\Zhang\Desktop\SA_hw\new\backend\app\schemas\analysis.py
     C 22:0 AnalysisResultOut - A
     M 43:4 AnalysisResultOut._check_sentiment - A
     M 52:4 AnalysisResultOut._check_level - A
@@ -162,19 +162,19 @@ c:\Users\Zhang\Desktop\SA_hw\new\backend\app\schemas\analysis.py
     C 15:0 RiskScoreOut - A
     C 60:0 AnalyzeActionResultOut - A
     C 70:0 AnalyzePendingResultOut - A
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\schemas\audit.py
+C:\Users\Zhang\Desktop\SA_hw\new\backend\app\schemas\audit.py
     C 28:0 AuditLogOut - A
     C 50:0 AuditLogListOut - A
     C 55:0 AuditLogFacetsOut - A
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\schemas\auth.py
+C:\Users\Zhang\Desktop\SA_hw\new\backend\app\schemas\auth.py
     C 7:0 LoginRequest - A
     C 12:0 TokenResponse - A
     C 18:0 UserOut - A
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\schemas\dashboard.py
+C:\Users\Zhang\Desktop\SA_hw\new\backend\app\schemas\dashboard.py
     C 24:0 DashboardTrendPoint - A
     C 39:0 DashboardLatestAlert - A
     C 59:0 DashboardSummaryOut - A
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\schemas\datasources.py
+C:\Users\Zhang\Desktop\SA_hw\new\backend\app\schemas\datasources.py
     C 17:0 DataSourceCreate - A
     M 28:4 DataSourceCreate._code_no_spaces - A
     M 45:4 DataSourceCreate._url_required_for_network - A
@@ -182,12 +182,12 @@ c:\Users\Zhang\Desktop\SA_hw\new\backend\app\schemas\datasources.py
     C 52:0 DataSourceUpdate - A
     C 61:0 DataSourceOut - A
     C 78:0 FetchResult - A
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\schemas\imports.py
+C:\Users\Zhang\Desktop\SA_hw\new\backend\app\schemas\imports.py
     C 9:0 ImportResultOut - A
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\schemas\opinions.py
+C:\Users\Zhang\Desktop\SA_hw\new\backend\app\schemas\opinions.py
     C 16:0 OpinionItemOut - A
     C 37:0 OpinionListOut - A
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\schemas\reports.py
+C:\Users\Zhang\Desktop\SA_hw\new\backend\app\schemas\reports.py
     C 34:0 ReportTaskCreateRequest - A
     M 53:4 ReportTaskCreateRequest._check_risk_level - A
     C 70:0 ReportTaskOut - A
@@ -196,7 +196,7 @@ c:\Users\Zhang\Desktop\SA_hw\new\backend\app\schemas\reports.py
     C 105:0 ReportTaskListOut - A
     C 110:0 ReportTaskSummaryOut - A
     C 120:0 ReportTaskCreateResultOut - A
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\schemas\rules.py
+C:\Users\Zhang\Desktop\SA_hw\new\backend\app\schemas\rules.py
     C 14:0 SensitiveKeywordCreate - A
     M 31:4 SensitiveKeywordCreate._valid_severity - A
     C 38:0 SensitiveKeywordUpdate - A
@@ -211,7 +211,7 @@ c:\Users\Zhang\Desktop\SA_hw\new\backend\app\schemas\rules.py
     C 87:0 SubjectKeywordOut - A
     C 110:0 RiskThresholdUpdate - A
     C 114:0 RiskThresholdOut - A
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\schemas\tickets.py
+C:\Users\Zhang\Desktop\SA_hw\new\backend\app\schemas\tickets.py
     C 128:0 TicketCompleteRequest - A
     C 52:0 TicketOut - A
     M 135:4 TicketCompleteRequest._check_result_nonblank - A
@@ -228,7 +228,7 @@ c:\Users\Zhang\Desktop\SA_hw\new\backend\app\schemas\tickets.py
     C 164:0 TicketCompleteResultOut - A
     C 171:0 TicketArchiveResultOut - A
     C 178:0 TicketSummaryOut - A
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\schemas\users.py
+C:\Users\Zhang\Desktop\SA_hw\new\backend\app\schemas\users.py
     C 10:0 UserCreate - A
     M 19:4 UserCreate._username_no_spaces - A
     C 28:0 UserUpdate - A
@@ -236,7 +236,7 @@ c:\Users\Zhang\Desktop\SA_hw\new\backend\app\schemas\users.py
     C 38:0 PasswordResetResponse - A
     C 43:0 RoleInfo - A
     C 51:0 UserOut - A
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\services\alerts.py
+C:\Users\Zhang\Desktop\SA_hw\new\backend\app\services\alerts.py
     F 148:0 list_alerts - B
     F 98:0 ensure_alert_for_analysis - B
     F 293:0 alert_to_dict - B
@@ -250,14 +250,14 @@ c:\Users\Zhang\Desktop\SA_hw\new\backend\app\services\alerts.py
     F 204:0 get_alert - A
     F 239:0 confirm_alert - A
     M 58:4 AlertStateError.__str__ - A
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\services\analysis.py
+C:\Users\Zhang\Desktop\SA_hw\new\backend\app\services\analysis.py
     F 58:0 analyze_opinion - B
     F 143:0 analyze_batch - A
     F 154:0 pending_opinions - A
     F 182:0 opinions_by_ids - A
     F 46:0 _utcnow - A
     F 50:0 _existing_result - A
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\services\audit.py
+C:\Users\Zhang\Desktop\SA_hw\new\backend\app\services\audit.py
     F 101:0 list_audit_logs - C
     F 168:0 audit_log_facets - B
     F 65:0 get_client_ip - B
@@ -265,7 +265,7 @@ c:\Users\Zhang\Desktop\SA_hw\new\backend\app\services\audit.py
     F 36:0 record_audit - A
     F 25:0 _coerce_detail - A
     F 164:0 get_audit_log - A
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\services\bootstrap.py
+C:\Users\Zhang\Desktop\SA_hw\new\backend\app\services\bootstrap.py
     F 174:0 _seed_admin - A
     F 112:0 _seed_roles - A
     F 120:0 _seed_risk_thresholds - A
@@ -275,7 +275,7 @@ c:\Users\Zhang\Desktop\SA_hw\new\backend\app\services\bootstrap.py
     F 159:0 _seed_import_sources - A
     F 144:0 _seed_demo_data_source - A
     F 88:0 init_db - A
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\services\dashboard.py
+C:\Users\Zhang\Desktop\SA_hw\new\backend\app\services\dashboard.py
     F 133:0 _opinion_trend - B
     F 219:0 _latest_alerts - B
     F 251:0 _opinion_aggregate - A
@@ -288,19 +288,19 @@ c:\Users\Zhang\Desktop\SA_hw\new\backend\app\services\dashboard.py
     F 85:0 _has_ticket_read - A
     F 98:0 _trend_window_end - A
     F 210:0 _alert_high_or_severe_total - A
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\services\datasource_fetch.py
+C:\Users\Zhang\Desktop\SA_hw\new\backend\app\services\datasource_fetch.py
     F 81:0 fetch_datasource - B
     F 185:0 _classify_status - B
     F 198:0 _write_status - A
     C 58:0 FetchOutcome - A
     M 77:4 FetchOutcome.ok - A
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\services\importers.py
+C:\Users\Zhang\Desktop\SA_hw\new\backend\app\services\importers.py
     F 33:0 parse_csv - C
     F 76:0 parse_json - C
     F 127:0 _coerce_datetime - B
     C 20:0 ImportParseError - A
     M 27:4 ImportParseError.__init__ - A
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\services\ingestion.py
+C:\Users\Zhang\Desktop\SA_hw\new\backend\app\services\ingestion.py
     F 111:0 _clean_record - C
     F 37:0 ingest_records - B
     F 130:0 _serialize_payload - A
@@ -308,7 +308,7 @@ c:\Users\Zhang\Desktop\SA_hw\new\backend\app\services\ingestion.py
     C 25:0 IngestionResult - A
     C 33:0 IngestionError - A
     C 107:0 _RecordRejected - A
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\services\reports.py
+C:\Users\Zhang\Desktop\SA_hw\new\backend\app\services\reports.py
     F 314:0 _write_excel - D
     F 246:0 _row_payload - C
     F 292:0 _autosize - B
@@ -329,7 +329,7 @@ c:\Users\Zhang\Desktop\SA_hw\new\backend\app\services\reports.py
     F 650:0 report_task_to_dict - A
     F 675:0 matched_opinions_for_task - A
     C 77:0 ReportInputError - A
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\services\scheduler.py
+C:\Users\Zhang\Desktop\SA_hw\new\backend\app\services\scheduler.py
     F 106:0 _scheduler_loop - A
     F 124:0 run_once - A
     F 66:0 start_scheduler_if_enabled - A
@@ -337,7 +337,7 @@ c:\Users\Zhang\Desktop\SA_hw\new\backend\app\services\scheduler.py
     F 61:0 scheduler_task_is_alive - A
     F 40:0 _get_session_factory - A
     F 56:0 is_running - A
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\services\scoring.py
+C:\Users\Zhang\Desktop\SA_hw\new\backend\app\services\scoring.py
     F 239:0 _build_explanation - C
     F 130:0 compute_risk - B
     F 85:0 _match_keywords - A
@@ -348,7 +348,7 @@ c:\Users\Zhang\Desktop\SA_hw\new\backend\app\services\scoring.py
     F 279:0 factors_to_json - A
     F 283:0 explanation_to_json - A
     C 74:0 ScoreResult - A
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\services\tickets.py
+C:\Users\Zhang\Desktop\SA_hw\new\backend\app\services\tickets.py
     F 105:0 create_ticket_from_alert - C
     F 315:0 list_tickets - B
     F 170:0 assign_ticket - B
@@ -363,20 +363,20 @@ c:\Users\Zhang\Desktop\SA_hw\new\backend\app\services\tickets.py
     F 379:0 get_ticket - A
     M 73:4 TicketStateError.__str__ - A
     C 81:0 TicketInputError - A
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\services\connectors\json_url.py
+C:\Users\Zhang\Desktop\SA_hw\new\backend\app\services\connectors\json_url.py
     C 19:0 JsonUrlConnector - B
     F 40:0 _coerce - A
     M 22:4 JsonUrlConnector.fetch - A
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\services\connectors\rss.py
+C:\Users\Zhang\Desktop\SA_hw\new\backend\app\services\connectors\rss.py
     C 30:0 RssConnector - C
     M 33:4 RssConnector.fetch - C
     F 20:0 _parse_dt - A
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\services\connectors\static_demo.py
+C:\Users\Zhang\Desktop\SA_hw\new\backend\app\services\connectors\static_demo.py
     C 90:0 StaticDemoConnector - A
     F 16:0 _utc - A
     F 24:0 _build_demo_records - A
     M 93:4 StaticDemoConnector.fetch - A
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\services\connectors\weibo.py
+C:\Users\Zhang\Desktop\SA_hw\new\backend\app\services\connectors\weibo.py
     F 75:0 _coerce - C
     F 50:0 _extract_items - B
     F 115:0 _parse_datetime - B
@@ -384,7 +384,7 @@ c:\Users\Zhang\Desktop\SA_hw\new\backend\app\services\connectors\weibo.py
     M 25:4 WeiboConnector.fetch - A
     F 133:0 _build_weibo_url - A
     F 109:0 _clean_text - A
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\services\connectors\__init__.py
+C:\Users\Zhang\Desktop\SA_hw\new\backend\app\services\connectors\__init__.py
     F 98:0 get_connector - A
     C 61:0 BaseConnector - A
     F 85:0 _get_connector_registry - A
@@ -392,22 +392,22 @@ c:\Users\Zhang\Desktop\SA_hw\new\backend\app\services\connectors\__init__.py
     C 57:0 ConnectorError - A
     M 70:4 BaseConnector.fetch - A
     M 74:4 BaseConnector.compute_content_hash - A
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\services\nlp\base.py
+C:\Users\Zhang\Desktop\SA_hw\new\backend\app\services\nlp\base.py
     C 39:0 BaseNlpProvider - A
     C 26:0 NlpResult - A
     M 50:4 BaseNlpProvider.analyze - A
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\services\nlp\exceptions.py
+C:\Users\Zhang\Desktop\SA_hw\new\backend\app\services\nlp\exceptions.py
     C 4:0 NlpProviderError - A
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\services\nlp\keyword.py
+C:\Users\Zhang\Desktop\SA_hw\new\backend\app\services\nlp\keyword.py
     C 75:0 KeywordNlpProvider - B
     M 78:4 KeywordNlpProvider.analyze - B
     F 58:0 _token_count - A
     F 68:0 _confidence - A
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\services\nlp\__init__.py
+C:\Users\Zhang\Desktop\SA_hw\new\backend\app\services\nlp\__init__.py
     F 49:0 get_nlp_provider - A
     F 35:0 _build_registry - A
     F 64:0 reset_nlp_provider_cache - A
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\web\routes.py
+C:\Users\Zhang\Desktop\SA_hw\new\backend\app\web\routes.py
     F 29:0 _current_user_from_cookie_or_none - B
     F 90:0 render_page - A
     F 47:0 _require_web_user - A
@@ -422,7 +422,7 @@ Average complexity: A (3.268361581920904)
 
 --- 2. Code Duplication ---
 ************* Module app.web.__init__
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\web\__init__.py:1:0: R0801: Similar lines in 2 files
+backend\app\web\__init__.py:1:0: R0801: Similar lines in 2 files
 ==app.services.alerts:[319:336]
 ==app.services.tickets:[446:463]
         "opinion": {
@@ -442,7 +442,7 @@ c:\Users\Zhang\Desktop\SA_hw\new\backend\app\web\__init__.py:1:0: R0801: Similar
             "analysis_level": analysis.level if analysis is not None else None,
             "analysis_status": analysis.status if analysis is not None else None,
         }, (duplicate-code)
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\web\__init__.py:1:0: R0801: Similar lines in 2 files
+backend\app\web\__init__.py:1:0: R0801: Similar lines in 2 files
 ==app.schemas.alerts:[20:37]
 ==app.schemas.tickets:[22:39]
     id: int
@@ -462,7 +462,7 @@ c:\Users\Zhang\Desktop\SA_hw\new\backend\app\web\__init__.py:1:0: R0801: Similar
     analysis_status: Optional[str] = None
 
  (duplicate-code)
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\web\__init__.py:1:0: R0801: Similar lines in 2 files
+backend\app\web\__init__.py:1:0: R0801: Similar lines in 2 files
 ==app.services.alerts:[178:187]
 ==app.services.tickets:[353:362]
     if keyword:
@@ -474,7 +474,7 @@ c:\Users\Zhang\Desktop\SA_hw\new\backend\app\web\__init__.py:1:0: R0801: Similar
             (OpinionItem.title.like(like)) | (OpinionItem.content.like(like))
         )
     if start_at is not None: (duplicate-code)
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\web\__init__.py:1:0: R0801: Similar lines in 2 files
+backend\app\web\__init__.py:1:0: R0801: Similar lines in 2 files
 ==app.models.report:[116:125]
 ==app.models.ticket:[124:133]
     )
@@ -486,7 +486,7 @@ c:\Users\Zhang\Desktop\SA_hw\new\backend\app\web\__init__.py:1:0: R0801: Similar
         DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False
     )
  (duplicate-code)
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\web\__init__.py:1:0: R0801: Similar lines in 2 files
+backend\app\web\__init__.py:1:0: R0801: Similar lines in 2 files
 ==app.services.connectors.json_url:[22:29]
 ==app.services.connectors.weibo:[25:33]
         if not source.url:
@@ -496,7 +496,7 @@ c:\Users\Zhang\Desktop\SA_hw\new\backend\app\web\__init__.py:1:0: R0801: Similar
                 resp = client.get(source.url)
                 resp.raise_for_status()
                 payload = resp.json() (duplicate-code)
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\web\__init__.py:1:0: R0801: Similar lines in 2 files
+backend\app\web\__init__.py:1:0: R0801: Similar lines in 2 files
 ==app.models.alert:[61:68]
 ==app.models.ticket:[74:81]
     opinion_item_id: Mapped[int] = mapped_column(
@@ -506,7 +506,7 @@ c:\Users\Zhang\Desktop\SA_hw\new\backend\app\web\__init__.py:1:0: R0801: Similar
     )
     risk_level: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
     risk_score: Mapped[int] = mapped_column(Integer, nullable=False) (duplicate-code)
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\web\__init__.py:1:0: R0801: Similar lines in 2 files
+backend\app\web\__init__.py:1:0: R0801: Similar lines in 2 files
 ==app.models.alert:[58:66]
 ==app.models.analysis:[44:52]
     )
@@ -517,7 +517,7 @@ c:\Users\Zhang\Desktop\SA_hw\new\backend\app\web\__init__.py:1:0: R0801: Similar
         nullable=False,
         index=True,
     ) (duplicate-code)
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\web\__init__.py:1:0: R0801: Similar lines in 2 files
+backend\app\web\__init__.py:1:0: R0801: Similar lines in 2 files
 ==app.services.connectors.weibo:[119:125]
 ==app.services.importers:[131:138]
     text = str(value).strip()
@@ -527,7 +527,7 @@ c:\Users\Zhang\Desktop\SA_hw\new\backend\app\web\__init__.py:1:0: R0801: Similar
         # Python 3.11+ understands the common ISO-8601 shapes natively.
         return datetime.fromisoformat(text.replace("Z", "+00:00"))
     except ValueError: (duplicate-code)
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\web\__init__.py:1:0: R0801: Similar lines in 2 files
+backend\app\web\__init__.py:1:0: R0801: Similar lines in 2 files
 ==app.api.opinions:[71:80]
 ==app.services.reports:[237:247]
     if not value:
@@ -539,7 +539,7 @@ c:\Users\Zhang\Desktop\SA_hw\new\backend\app\web\__init__.py:1:0: R0801: Similar
 
 
 def _analysis_to_out(row: AnalysisResult | None) -> AnalysisResultOut: (duplicate-code)
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\web\__init__.py:1:0: R0801: Similar lines in 2 files
+backend\app\web\__init__.py:1:0: R0801: Similar lines in 2 files
 ==app.api.datasources:[99:105]
 ==app.api.rules:[113:119]
     )
@@ -548,7 +548,7 @@ c:\Users\Zhang\Desktop\SA_hw\new\backend\app\web\__init__.py:1:0: R0801: Similar
     record_audit(
         db,
         actor=admin, (duplicate-code)
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\web\__init__.py:1:0: R0801: Similar lines in 2 files
+backend\app\web\__init__.py:1:0: R0801: Similar lines in 2 files
 ==app.schemas.auth:[22:27]
 ==app.schemas.users:[56:61]
     role: str
@@ -556,7 +556,7 @@ c:\Users\Zhang\Desktop\SA_hw\new\backend\app\web\__init__.py:1:0: R0801: Similar
     permissions: list[str]
     nav_items: list[dict]
     created_at: datetime (duplicate-code)
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\web\__init__.py:1:0: R0801: Similar lines in 2 files
+backend\app\web\__init__.py:1:0: R0801: Similar lines in 2 files
 ==app.schemas.auth:[17:22]
 ==app.schemas.users:[50:55]
 class UserOut(BaseModel):
@@ -564,7 +564,7 @@ class UserOut(BaseModel):
     username: str
     full_name: str
     is_active: bool (duplicate-code)
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\web\__init__.py:1:0: R0801: Similar lines in 2 files
+backend\app\web\__init__.py:1:0: R0801: Similar lines in 2 files
 ==app.schemas.alerts:[21:26]
 ==app.schemas.opinions:[21:26]
     title: str
@@ -572,7 +572,7 @@ c:\Users\Zhang\Desktop\SA_hw\new\backend\app\web\__init__.py:1:0: R0801: Similar
     url: str
     author: str
     language: str (duplicate-code)
-c:\Users\Zhang\Desktop\SA_hw\new\backend\app\web\__init__.py:1:0: R0801: Similar lines in 2 files
+backend\app\web\__init__.py:1:0: R0801: Similar lines in 2 files
 ==app.schemas.alerts:[38:43]
 ==app.schemas.dashboard:[46:51]
     id: int
