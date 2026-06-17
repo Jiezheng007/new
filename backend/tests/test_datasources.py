@@ -16,8 +16,10 @@ from sqlalchemy.orm import Session
 
 from app.db import session as session_module
 from app.models.alert import Alert
+from app.models.analysis import AnalysisResult
 from app.models.audit import AuditLog
 from app.models.datasource import DataSource, OpinionItem
+from app.models.ticket import Ticket
 
 
 def _engine():
@@ -55,6 +57,32 @@ def test_list_datasources_includes_static_demo_for_admin(client):
     assert "demo_static" in codes
     assert "import_csv" in codes
     assert "import_json" in codes
+
+
+def test_list_datasources_reports_actual_opinion_item_count(client):
+    client.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
+    db = Session(_engine())
+    try:
+        src = db.query(DataSource).filter(DataSource.code == "import_csv").one()
+        src.latest_items_count = 0
+        db.add(OpinionItem(
+            source_id=src.id,
+            source_code=src.code,
+            source_type=src.source_type,
+            title="导入舆情",
+            content="导入舆情内容",
+            content_hash="import-csv-count-test",
+            origin="import_csv",
+        ))
+        db.commit()
+    finally:
+        db.close()
+
+    res = client.get("/api/datasources")
+
+    assert res.status_code == 200
+    import_csv = next(s for s in res.json() if s["code"] == "import_csv")
+    assert import_csv["latest_items_count"] == 1
 
 
 def test_create_datasource_as_admin(client):
@@ -213,6 +241,147 @@ def test_update_datasource_404(client):
     client.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
     res = client.patch("/api/datasources/99999", json={"name": "x"})
     assert res.status_code == 404
+
+
+def test_delete_datasource_removes_source_and_records_audit(client):
+    client.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
+    create = client.post(
+        "/api/datasources",
+        json={"code": "delete_me", "name": "可删除", "source_type": "rss", "url": "https://x"},
+    )
+    assert create.status_code == 201, create.text
+    target_id = create.json()["id"]
+
+    res = client.delete(f"/api/datasources/{target_id}")
+
+    assert res.status_code == 204, res.text
+    db = Session(_engine())
+    try:
+        assert db.get(DataSource, target_id) is None
+    finally:
+        db.close()
+    entry = _latest_audit("datasource.delete", str(target_id))
+    assert entry is not None
+    assert entry.result == "success"
+    detail = json.loads(entry.detail)
+    assert detail["code"] == "delete_me"
+
+
+def test_delete_datasource_blocks_non_admin(client):
+    client.post("/api/auth/login", json={"username": "risk", "password": "risk123"})
+    res = client.delete("/api/datasources/1")
+    assert res.status_code == 403
+
+
+def test_delete_datasource_404(client):
+    client.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
+    res = client.delete("/api/datasources/99999")
+    assert res.status_code == 404
+
+
+def test_delete_datasource_rejects_source_with_opinion_items(client):
+    client.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
+    create = client.post(
+        "/api/datasources",
+        json={
+            "code": "delete_has_items",
+            "name": "已有舆情",
+            "source_type": "news_search",
+            "query": "洛克王国",
+            "max_items_per_fetch": 1,
+        },
+    )
+    assert create.status_code == 201, create.text
+    target_id = create.json()["id"]
+    fetch = client.post(f"/api/datasources/{target_id}/fetch")
+    assert fetch.status_code == 200, fetch.text
+
+    res = client.delete(f"/api/datasources/{target_id}")
+
+    assert res.status_code == 409
+    assert "已有历史舆情数据" in res.json()["detail"]
+    db = Session(_engine())
+    try:
+        assert db.get(DataSource, target_id) is not None
+    finally:
+        db.close()
+
+
+def test_delete_datasource_with_cascade_removes_related_data(client):
+    client.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
+    db = Session(_engine())
+    try:
+        source = DataSource(
+            code="delete_cascade",
+            name="级联删除",
+            source_type="rss",
+            url="https://cascade.example/feed.xml",
+        )
+        db.add(source)
+        db.flush()
+        opinion = OpinionItem(
+            source_id=source.id,
+            source_code=source.code,
+            source_type=source.source_type,
+            title="级联舆情",
+            content="级联舆情内容",
+            content_hash="delete-cascade-opinion",
+        )
+        db.add(opinion)
+        db.flush()
+        analysis = AnalysisResult(
+            opinion_item_id=opinion.id,
+            status="success",
+            sentiment="negative",
+            score=90,
+            level="severe",
+        )
+        alert = Alert(
+            opinion_item_id=opinion.id,
+            risk_level="severe",
+            risk_score=90,
+            status="confirmed",
+        )
+        db.add_all([analysis, alert])
+        db.flush()
+        ticket = Ticket(
+            alert_id=alert.id,
+            opinion_item_id=opinion.id,
+            risk_level="severe",
+            risk_score=90,
+            title="级联工单",
+            description="级联工单描述",
+        )
+        db.add(ticket)
+        db.commit()
+        source_id = source.id
+        opinion_id = opinion.id
+        analysis_id = analysis.id
+        alert_id = alert.id
+        ticket_id = ticket.id
+    finally:
+        db.close()
+
+    res = client.delete(f"/api/datasources/{source_id}?cascade=true")
+
+    assert res.status_code == 204, res.text
+    db = Session(_engine())
+    try:
+        assert db.get(DataSource, source_id) is None
+        assert db.get(OpinionItem, opinion_id) is None
+        assert db.get(AnalysisResult, analysis_id) is None
+        assert db.get(Alert, alert_id) is None
+        assert db.get(Ticket, ticket_id) is None
+    finally:
+        db.close()
+    entry = _latest_audit("datasource.delete", str(source_id))
+    assert entry is not None
+    detail = json.loads(entry.detail)
+    assert detail["cascade"] is True
+    assert detail["deleted"]["opinion_items"] == 1
+    assert detail["deleted"]["analysis_results"] == 1
+    assert detail["deleted"]["alerts"] == 1
+    assert detail["deleted"]["tickets"] == 1
 
 
 # ---------- fetch ----------

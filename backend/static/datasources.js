@@ -94,6 +94,13 @@
       toggleBtn.textContent = s.is_enabled ? "停用" : "启用";
       toggleBtn.addEventListener("click", () => toggleSource(s));
       actions.appendChild(toggleBtn);
+      actions.appendChild(document.createTextNode(" · "));
+      const deleteBtn = document.createElement("button");
+      deleteBtn.type = "button";
+      deleteBtn.className = "link-button danger";
+      deleteBtn.textContent = "删除";
+      deleteBtn.addEventListener("click", () => deleteSource(s));
+      actions.appendChild(deleteBtn);
       tr.appendChild(actions);
       tbody.appendChild(tr);
     });
@@ -208,6 +215,102 @@
       await window.alertModal({
         title: `${verb}失败`,
         message: (body && body.detail) || `${verb}失败`,
+        danger: true,
+      });
+      return;
+    }
+    await loadAll();
+  };
+
+  const confirmDeleteSource = (s) => new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.className = "dialog";
+    overlay.setAttribute("role", "dialog");
+    overlay.setAttribute("aria-modal", "true");
+
+    const card = document.createElement("div");
+    card.className = "dialog-card";
+    card.style.width = "min(520px, 92vw)";
+
+    const header = document.createElement("header");
+    const title = document.createElement("h3");
+    title.textContent = "删除数据源";
+    header.appendChild(title);
+    card.appendChild(header);
+
+    const body = document.createElement("div");
+    const message = document.createElement("p");
+    message.className = "page-modal-msg";
+    const itemCount = Number(s.latest_items_count || 0);
+    message.textContent = `确定要删除数据源「${s.name}」吗? 当前关联历史舆情 ${itemCount} 条。`;
+    body.appendChild(message);
+
+    const cascadeLabel = document.createElement("label");
+    cascadeLabel.className = "checkbox";
+    cascadeLabel.style.marginTop = "0.8rem";
+    const cascadeInput = document.createElement("input");
+    cascadeInput.type = "checkbox";
+    cascadeInput.disabled = itemCount === 0;
+    const cascadeText = document.createElement("span");
+    cascadeText.textContent = itemCount === 0
+      ? "该数据源没有历史舆情数据,无需连带删除"
+      : "同时删除该数据源下的历史舆情、分析结果、预警和工单";
+    cascadeLabel.appendChild(cascadeInput);
+    cascadeLabel.appendChild(cascadeText);
+    body.appendChild(cascadeLabel);
+
+    const warning = document.createElement("p");
+    warning.className = "muted small";
+    warning.style.marginTop = "0.8rem";
+    warning.textContent = "连带删除不可恢复;审计日志会保留本次删除记录。";
+    body.appendChild(warning);
+    card.appendChild(body);
+
+    const actions = document.createElement("div");
+    actions.className = "page-modal-actions";
+    const cancelBtn = document.createElement("button");
+    cancelBtn.type = "button";
+    cancelBtn.className = "link-button";
+    cancelBtn.textContent = "取消";
+    const confirmBtn = document.createElement("button");
+    confirmBtn.type = "button";
+    confirmBtn.className = "primary";
+    confirmBtn.style.background = "var(--alarm)";
+    confirmBtn.textContent = "删除";
+    actions.appendChild(cancelBtn);
+    actions.appendChild(confirmBtn);
+    card.appendChild(actions);
+    overlay.appendChild(card);
+
+    const escHandler = (e) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        done(false);
+      }
+    };
+    const done = (confirmed) => {
+      document.removeEventListener("keydown", escHandler, true);
+      if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+      resolve({ confirmed, cascade: confirmed && cascadeInput.checked });
+    };
+    cancelBtn.addEventListener("click", () => done(false));
+    confirmBtn.addEventListener("click", () => done(true));
+    overlay.addEventListener("click", (e) => { if (e.target === overlay) done(false); });
+    document.addEventListener("keydown", escHandler, true);
+    document.body.appendChild(overlay);
+    setTimeout(() => confirmBtn.focus(), 0);
+  });
+
+  const deleteSource = async (s) => {
+    const decision = await confirmDeleteSource(s);
+    if (!decision.confirmed) return;
+    const cascadeQuery = decision.cascade ? "?cascade=true" : "";
+    const res = await csrfSafeFetch(`/api/datasources/${s.id}${cascadeQuery}`, { method: "DELETE" });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      await window.alertModal({
+        title: "删除失败",
+        message: (body && body.detail) || "删除失败",
         danger: true,
       });
       return;

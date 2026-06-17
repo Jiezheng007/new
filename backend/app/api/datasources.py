@@ -10,13 +10,17 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
 from app.db.session import get_db
-from app.models.datasource import DataSource
+from app.models.alert import Alert
+from app.models.analysis import AnalysisResult
+from app.models.datasource import DataSource, OpinionItem
 from app.models.role_codes import RoleCode
+from app.models.ticket import Ticket
 from app.models.user import User
 from app.schemas.datasources import (
     DataSourceCreate,
@@ -44,7 +48,7 @@ def _require_admin(user: User = Depends(get_current_user)) -> User:
     return user
 
 
-def _serialize(row: DataSource) -> dict[str, Any]:
+def _serialize(row: DataSource, item_count: int | None = None) -> dict[str, Any]:
     return {
         "id": row.id,
         "code": row.code,
@@ -61,7 +65,7 @@ def _serialize(row: DataSource) -> dict[str, Any]:
         "latest_fetch_at": row.latest_fetch_at,
         "latest_fetch_status": row.latest_fetch_status,
         "latest_fetch_message": row.latest_fetch_message,
-        "latest_items_count": row.latest_items_count,
+        "latest_items_count": row.latest_items_count if item_count is None else item_count,
         "created_at": row.created_at,
         "updated_at": row.updated_at,
     }
@@ -73,7 +77,12 @@ def list_datasources(
     _: User = Depends(_require_admin),
 ) -> list[DataSourceOut]:
     rows = db.query(DataSource).order_by(DataSource.id.asc()).all()
-    return [DataSourceOut(**_serialize(r)) for r in rows]
+    item_counts = dict(
+        db.query(OpinionItem.source_id, func.count(OpinionItem.id))
+        .group_by(OpinionItem.source_id)
+        .all()
+    )
+    return [DataSourceOut(**_serialize(r, item_counts.get(r.id, 0))) for r in rows]
 
 
 @router.post("", response_model=DataSourceOut, status_code=status.HTTP_201_CREATED)
@@ -282,6 +291,98 @@ def update_datasource(
     db.commit()
     db.refresh(row)
     return DataSourceOut(**_serialize(row))
+
+
+@router.delete("/{source_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
+def delete_datasource(
+    source_id: int,
+    request: Request,
+    cascade: bool = False,
+    db: Session = Depends(get_db),
+    admin: User = Depends(_require_admin),
+) -> Response:
+    ip = get_client_ip(request)
+    row = db.get(DataSource, source_id)
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="数据源不存在")
+
+    has_items = (
+        db.query(OpinionItem.id).filter(OpinionItem.source_id == source_id).first() is not None
+    )
+    if has_items:
+        if not cascade:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="该数据源已有历史舆情数据,不能删除。你可以勾选同时删除相关数据,或停用该数据源以停止后续抓取。",
+            )
+        deleted = _delete_datasource_related_rows(db, source_id)
+    else:
+        deleted = _empty_deleted_counts()
+
+    detail = {
+        "code": row.code,
+        "name": row.name,
+        "source_type": row.source_type,
+        "cascade": cascade,
+        "deleted": deleted,
+    }
+    db.delete(row)
+    record_audit(
+        db,
+        actor=admin,
+        action="datasource.delete",
+        target_type="datasource",
+        target_id=str(source_id),
+        result="success",
+        detail=detail,
+        ip_address=ip,
+    )
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+def _empty_deleted_counts() -> dict[str, int]:
+    return {"opinion_items": 0, "analysis_results": 0, "alerts": 0, "tickets": 0}
+
+
+def _delete_datasource_related_rows(db: Session, source_id: int) -> dict[str, int]:
+    opinion_ids = [
+        row[0]
+        for row in db.query(OpinionItem.id).filter(OpinionItem.source_id == source_id).all()
+    ]
+    if not opinion_ids:
+        return _empty_deleted_counts()
+
+    alert_ids = [
+        row[0]
+        for row in db.query(Alert.id).filter(Alert.opinion_item_id.in_(opinion_ids)).all()
+    ]
+    ticket_filter = Ticket.opinion_item_id.in_(opinion_ids)
+    if alert_ids:
+        ticket_filter = or_(ticket_filter, Ticket.alert_id.in_(alert_ids))
+    ticket_query = db.query(Ticket).filter(ticket_filter)
+    ticket_count = ticket_query.delete(synchronize_session=False)
+    alert_count = (
+        db.query(Alert)
+        .filter(Alert.opinion_item_id.in_(opinion_ids))
+        .delete(synchronize_session=False)
+    )
+    analysis_count = (
+        db.query(AnalysisResult)
+        .filter(AnalysisResult.opinion_item_id.in_(opinion_ids))
+        .delete(synchronize_session=False)
+    )
+    opinion_count = (
+        db.query(OpinionItem)
+        .filter(OpinionItem.id.in_(opinion_ids))
+        .delete(synchronize_session=False)
+    )
+    return {
+        "opinion_items": opinion_count,
+        "analysis_results": analysis_count,
+        "alerts": alert_count,
+        "tickets": ticket_count,
+    }
 
 
 @router.post("/{source_id}/fetch", response_model=FetchResult)

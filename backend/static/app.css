@@ -657,6 +657,8 @@ h1, h2, h3, h4 {
   transition: color 120ms ease;
 }
 .link-button:hover { color: var(--signal-soft); text-decoration: none; }
+.link-button.danger { color: var(--danger); }
+.link-button.danger:hover { color: var(--alarm-deep); }
 
 /* — Main column — */
 .main {
