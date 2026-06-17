@@ -30,9 +30,11 @@ from app.models.analysis import (
 from app.models.datasource import OpinionItem
 from app.services.nlp import NlpProviderError, get_nlp_provider
 from app.services.scoring import (
+    ScoringRules,
     compute_risk,
     explanation_to_json,
     factors_to_json,
+    load_scoring_rules,
 )
 
 
@@ -55,7 +57,11 @@ def _existing_result(db: Session, opinion: OpinionItem) -> AnalysisResult | None
     )
 
 
-def analyze_opinion(db: Session, opinion: OpinionItem) -> AnalysisResult:
+def analyze_opinion(
+    db: Session,
+    opinion: OpinionItem,
+    rules: ScoringRules | None = None,
+) -> AnalysisResult:
     """Run NLP + scoring for one opinion and persist the result.
 
     Catches provider and scoring exceptions and writes them into the
@@ -105,7 +111,7 @@ def analyze_opinion(db: Session, opinion: OpinionItem) -> AnalysisResult:
         return row
 
     try:
-        scored = compute_risk(db, opinion, nlp_result)
+        scored = compute_risk(db, opinion, nlp_result, rules=rules)
     except Exception as e:  # noqa: BLE001
         row.status = ANALYSIS_STATUS_FAILED
         row.sentiment = nlp_result.sentiment
@@ -146,8 +152,9 @@ def analyze_batch(
 ) -> list[AnalysisResult]:
     """Run :func:`analyze_opinion` for every opinion in ``opinions``."""
     results: list[AnalysisResult] = []
+    rules = load_scoring_rules(db)
     for opinion in opinions:
-        results.append(analyze_opinion(db, opinion))
+        results.append(analyze_opinion(db, opinion, rules=rules))
     return results
 
 

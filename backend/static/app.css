@@ -657,6 +657,8 @@ h1, h2, h3, h4 {
   transition: color 120ms ease;
 }
 .link-button:hover { color: var(--signal-soft); text-decoration: none; }
+.link-button.danger { color: var(--danger); }
+.link-button.danger:hover { color: var(--alarm-deep); }
 
 /* — Main column — */
 .main {
@@ -975,6 +977,44 @@ button.primary:hover {
   transform: translateY(-1px);
 }
 button.primary:active { transform: translateY(0); }
+
+.alert-dialog-actions {
+  align-items: center;
+  gap: 1.5rem;
+  padding: 0.85rem 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px dashed var(--border);
+}
+
+.alert-dialog-actions button.primary,
+.alert-dialog-actions button.danger-secondary {
+  min-width: 108px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 1.1rem;
+  border-radius: var(--radius);
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 0.74rem;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+}
+
+button.danger-secondary {
+  background: var(--signal);
+  color: var(--ink);
+  border: 1px solid var(--signal);
+}
+
+button.danger-secondary:hover {
+  background: var(--signal-soft);
+  box-shadow: 0 0 0 3px var(--signal-glow);
+  transform: translateY(-1px);
+}
+
+button.danger-secondary:active { transform: translateY(0); }
 
 .status {
   font-family: var(--font-mono);

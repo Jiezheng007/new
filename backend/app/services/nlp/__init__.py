@@ -35,9 +35,11 @@ _PROVIDER_REGISTRY: dict[str, Type[BaseNlpProvider]] = {}
 def _build_registry() -> dict[str, Type[BaseNlpProvider]]:
     if _PROVIDER_REGISTRY:
         return _PROVIDER_REGISTRY
+    from app.services.nlp.jieba_provider import JiebaNlpProvider  # noqa: WPS433 - lazy import
     from app.services.nlp.keyword import KeywordNlpProvider  # noqa: WPS433 - lazy import
 
     _PROVIDER_REGISTRY.update({
+        "jieba_nlp": JiebaNlpProvider,
         "keyword_nlp": KeywordNlpProvider,
     })
     return _PROVIDER_REGISTRY

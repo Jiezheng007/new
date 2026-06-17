@@ -14,7 +14,12 @@ os.environ.setdefault("SECRET_KEY", "test-secret-key")
 
 from app.core.config import get_settings  # noqa: E402
 from app.core.security import hash_password  # noqa: E402
-from app.db.session import Base, get_db  # noqa: E402
+from app.db.session import (  # noqa: E402
+    SQLITE_CONNECT_TIMEOUT_S,
+    Base,
+    get_db,
+    register_sqlite_pragmas,
+)
 from app.main import create_app  # noqa: E402
 from app.models.datasource import DataSource  # noqa: E402
 from app.models.role_codes import ROLE_SEEDS, RoleCode  # noqa: E402
@@ -43,7 +48,13 @@ def app(test_db_url, monkeypatch):
     from app.db import session as session_module
     from app.services import bootstrap as bootstrap_module
 
-    test_engine = create_engine(test_db_url, connect_args={"check_same_thread": False})
+    test_engine = create_engine(
+        test_db_url,
+        connect_args={"check_same_thread": False, "timeout": SQLITE_CONNECT_TIMEOUT_S},
+    )
+    # Mirror the production PRAGMAs (WAL + busy_timeout) so concurrency
+    # tests exercise the same configuration the running app uses.
+    register_sqlite_pragmas(test_engine)
     TestSession = sessionmaker(bind=test_engine, autoflush=False, autocommit=False)
     session_module.engine = test_engine
     session_module.SessionLocal = TestSession

@@ -11,10 +11,19 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./yuqing.db"
     bootstrap_admin_username: str = "admin"
     bootstrap_admin_password: str = "admin123"
-    nlp_provider: str = "keyword_nlp"
+    # Sentiment-analysis backend. Default switched to jieba_nlp in Phase 5.
+    # keyword_nlp remains available as a deterministic baseline / fallback.
+    # Valid values: "jieba_nlp", "keyword_nlp".
+    nlp_provider: str = "jieba_nlp"
     scheduler_enabled: bool = True
     scheduler_interval_seconds: int = 300
     scheduler_fetch_batch_limit: int = 20
+    dashboard_summary_cache_ttl_seconds: int = 10
+    report_max_rows: int = 10000
+    report_export_batch_size: int = 500
+    # Keyword-driven news search provider. "mock" is deterministic and safe
+    # for local demos/tests; real deployments can add compliant API providers.
+    news_search_provider: str = "mock"
 
 
 @lru_cache

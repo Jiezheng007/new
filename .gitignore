@@ -19,6 +19,16 @@ logs/
 mock_data_*.json
 mock_extreme_data.json
 
+# But the NLP lexicon and eval dataset under specific backend paths are
+# intentional assets and must be tracked.
+!backend/app/services/nlp/data/
+!backend/app/services/nlp/data/*.txt
+!backend/app/services/nlp/data/LICENSE
+!backend/scripts/data/
+!backend/scripts/data/sentiment_eval.jsonl
+!backend/scripts/data/sentiment_eval.sample.jsonl
+!backend/scripts/data/eval_report.json
+
 # IDE
 .idea/
 .vscode/
@@ -29,3 +39,7 @@ mock_extreme_data.json
 
 # OS
 .DS_Store
+
+
+#Ignore vscode AI rules
+.github\instructions\codacy.instructions.md

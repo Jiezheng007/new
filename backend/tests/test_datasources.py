@@ -12,11 +12,15 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 
+from sqlalchemy import event
 from sqlalchemy.orm import Session
 
 from app.db import session as session_module
+from app.models.alert import Alert
+from app.models.analysis import AnalysisResult
 from app.models.audit import AuditLog
 from app.models.datasource import DataSource, OpinionItem
+from app.models.ticket import Ticket
 
 
 def _engine():
@@ -54,6 +58,32 @@ def test_list_datasources_includes_static_demo_for_admin(client):
     assert "demo_static" in codes
     assert "import_csv" in codes
     assert "import_json" in codes
+
+
+def test_list_datasources_reports_actual_opinion_item_count(client):
+    client.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
+    db = Session(_engine())
+    try:
+        src = db.query(DataSource).filter(DataSource.code == "import_csv").one()
+        src.latest_items_count = 0
+        db.add(OpinionItem(
+            source_id=src.id,
+            source_code=src.code,
+            source_type=src.source_type,
+            title="导入舆情",
+            content="导入舆情内容",
+            content_hash="import-csv-count-test",
+            origin="import_csv",
+        ))
+        db.commit()
+    finally:
+        db.close()
+
+    res = client.get("/api/datasources")
+
+    assert res.status_code == 200
+    import_csv = next(s for s in res.json() if s["code"] == "import_csv")
+    assert import_csv["latest_items_count"] == 1
 
 
 def test_create_datasource_as_admin(client):
@@ -127,6 +157,60 @@ def test_create_weibo_datasource_rejects_missing_url(client):
     assert res.status_code == 422
 
 
+def test_create_news_search_datasource_uses_query_not_url(client):
+    client.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
+    res = client.post(
+        "/api/datasources",
+        json={
+            "code": "rock_news",
+            "name": "洛克王国新闻监控",
+            "source_type": "news_search",
+            "query": "洛克王国 OR 洛克王国手游",
+            "fetch_interval_minutes": 30,
+            "max_items_per_fetch": 3,
+            "config": {"language": "zh", "region": "CN"},
+            "description": "关键词驱动新闻监控",
+        },
+    )
+    assert res.status_code == 201, res.text
+    body = res.json()
+    assert body["source_type"] == "news_search"
+    assert body["query"] == "洛克王国 OR 洛克王国手游"
+    assert body["url"] == ""
+    assert body["fetch_interval_minutes"] == 30
+    assert body["max_items_per_fetch"] == 3
+    assert body["config"]["region"] == "CN"
+
+
+def test_create_news_search_datasource_rejects_missing_query(client):
+    client.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
+    res = client.post(
+        "/api/datasources",
+        json={"code": "news_no_query", "name": "无关键词", "source_type": "news_search"},
+    )
+    assert res.status_code == 422
+
+
+def test_test_news_search_datasource_returns_samples(client):
+    client.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
+    res = client.post(
+        "/api/datasources/test",
+        json={
+            "source_type": "news_search",
+            "query": "洛克王国",
+            "max_items_per_fetch": 2,
+            "config": {"language": "zh", "region": "CN"},
+        },
+    )
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["ok"] is True
+    assert body["sample_count"] == 2
+    assert len(body["samples"]) == 2
+    assert "洛克王国" in body["samples"][0]["title"]
+    assert body["message"] == "测试成功,可抓取 2 条样例"
+
+
 def test_create_datasource_blocks_non_admin(client):
     client.post("/api/auth/login", json={"username": "risk", "password": "risk123"})
     res = client.post(
@@ -158,6 +242,147 @@ def test_update_datasource_404(client):
     client.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
     res = client.patch("/api/datasources/99999", json={"name": "x"})
     assert res.status_code == 404
+
+
+def test_delete_datasource_removes_source_and_records_audit(client):
+    client.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
+    create = client.post(
+        "/api/datasources",
+        json={"code": "delete_me", "name": "可删除", "source_type": "rss", "url": "https://x"},
+    )
+    assert create.status_code == 201, create.text
+    target_id = create.json()["id"]
+
+    res = client.delete(f"/api/datasources/{target_id}")
+
+    assert res.status_code == 204, res.text
+    db = Session(_engine())
+    try:
+        assert db.get(DataSource, target_id) is None
+    finally:
+        db.close()
+    entry = _latest_audit("datasource.delete", str(target_id))
+    assert entry is not None
+    assert entry.result == "success"
+    detail = json.loads(entry.detail)
+    assert detail["code"] == "delete_me"
+
+
+def test_delete_datasource_blocks_non_admin(client):
+    client.post("/api/auth/login", json={"username": "risk", "password": "risk123"})
+    res = client.delete("/api/datasources/1")
+    assert res.status_code == 403
+
+
+def test_delete_datasource_404(client):
+    client.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
+    res = client.delete("/api/datasources/99999")
+    assert res.status_code == 404
+
+
+def test_delete_datasource_rejects_source_with_opinion_items(client):
+    client.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
+    create = client.post(
+        "/api/datasources",
+        json={
+            "code": "delete_has_items",
+            "name": "已有舆情",
+            "source_type": "news_search",
+            "query": "洛克王国",
+            "max_items_per_fetch": 1,
+        },
+    )
+    assert create.status_code == 201, create.text
+    target_id = create.json()["id"]
+    fetch = client.post(f"/api/datasources/{target_id}/fetch")
+    assert fetch.status_code == 200, fetch.text
+
+    res = client.delete(f"/api/datasources/{target_id}")
+
+    assert res.status_code == 409
+    assert "已有历史舆情数据" in res.json()["detail"]
+    db = Session(_engine())
+    try:
+        assert db.get(DataSource, target_id) is not None
+    finally:
+        db.close()
+
+
+def test_delete_datasource_with_cascade_removes_related_data(client):
+    client.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
+    db = Session(_engine())
+    try:
+        source = DataSource(
+            code="delete_cascade",
+            name="级联删除",
+            source_type="rss",
+            url="https://cascade.example/feed.xml",
+        )
+        db.add(source)
+        db.flush()
+        opinion = OpinionItem(
+            source_id=source.id,
+            source_code=source.code,
+            source_type=source.source_type,
+            title="级联舆情",
+            content="级联舆情内容",
+            content_hash="delete-cascade-opinion",
+        )
+        db.add(opinion)
+        db.flush()
+        analysis = AnalysisResult(
+            opinion_item_id=opinion.id,
+            status="success",
+            sentiment="negative",
+            score=90,
+            level="severe",
+        )
+        alert = Alert(
+            opinion_item_id=opinion.id,
+            risk_level="severe",
+            risk_score=90,
+            status="confirmed",
+        )
+        db.add_all([analysis, alert])
+        db.flush()
+        ticket = Ticket(
+            alert_id=alert.id,
+            opinion_item_id=opinion.id,
+            risk_level="severe",
+            risk_score=90,
+            title="级联工单",
+            description="级联工单描述",
+        )
+        db.add(ticket)
+        db.commit()
+        source_id = source.id
+        opinion_id = opinion.id
+        analysis_id = analysis.id
+        alert_id = alert.id
+        ticket_id = ticket.id
+    finally:
+        db.close()
+
+    res = client.delete(f"/api/datasources/{source_id}?cascade=true")
+
+    assert res.status_code == 204, res.text
+    db = Session(_engine())
+    try:
+        assert db.get(DataSource, source_id) is None
+        assert db.get(OpinionItem, opinion_id) is None
+        assert db.get(AnalysisResult, analysis_id) is None
+        assert db.get(Alert, alert_id) is None
+        assert db.get(Ticket, ticket_id) is None
+    finally:
+        db.close()
+    entry = _latest_audit("datasource.delete", str(source_id))
+    assert entry is not None
+    detail = json.loads(entry.detail)
+    assert detail["cascade"] is True
+    assert detail["deleted"]["opinion_items"] == 1
+    assert detail["deleted"]["analysis_results"] == 1
+    assert detail["deleted"]["alerts"] == 1
+    assert detail["deleted"]["tickets"] == 1
 
 
 # ---------- fetch ----------
@@ -363,6 +588,80 @@ def test_manual_fetch_weibo_json_persists_and_dedupes(monkeypatch, client):
     assert body["duplicate"] == 2
 
 
+def test_manual_fetch_news_search_persists_keyword_news(client):
+    client.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
+    create = client.post(
+        "/api/datasources",
+        json={
+            "code": "keyword_news_fetch",
+            "name": "关键词新闻抓取",
+            "source_type": "news_search",
+            "query": "洛克王国",
+            "max_items_per_fetch": 2,
+        },
+    )
+    assert create.status_code == 201, create.text
+    source_id = create.json()["id"]
+
+    first = client.post(f"/api/datasources/{source_id}/fetch")
+    assert first.status_code == 200, first.text
+    assert first.json()["accepted"] == 2
+
+    db = Session(_engine())
+    try:
+        items = (
+            db.query(OpinionItem)
+            .filter(OpinionItem.source_id == source_id)
+            .order_by(OpinionItem.id)
+            .all()
+        )
+        assert len(items) == 2
+        assert items[0].source_type == "news_search"
+        assert "洛克王国" in items[0].title
+        assert items[0].url.startswith("https://news.example.test/")
+        assert "mock_news_search" in items[0].raw_payload
+    finally:
+        db.close()
+
+    second = client.post(f"/api/datasources/{source_id}/fetch")
+    assert second.status_code == 200, second.text
+    body = second.json()
+    assert body["accepted"] == 0
+    assert body["duplicate"] == 2
+
+
+def test_manual_fetch_news_search_creates_pending_alert_for_high_risk_news(client):
+    client.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
+    create = client.post(
+        "/api/datasources",
+        json={
+            "code": "keyword_news_alert",
+            "name": "关键词新闻预警",
+            "source_type": "news_search",
+            "query": "洛克王国",
+            "max_items_per_fetch": 2,
+        },
+    )
+    assert create.status_code == 201, create.text
+    source_id = create.json()["id"]
+
+    fetch = client.post(f"/api/datasources/{source_id}/fetch")
+    assert fetch.status_code == 200, fetch.text
+
+    db = Session(_engine())
+    try:
+        alerts = (
+            db.query(Alert)
+            .join(OpinionItem, OpinionItem.id == Alert.opinion_item_id)
+            .filter(OpinionItem.source_id == source_id)
+            .all()
+        )
+        assert alerts
+        assert any(a.status == "pending" and a.risk_level in {"high", "severe"} for a in alerts)
+    finally:
+        db.close()
+
+
 # ---------- opinion list/detail ----------
 
 def _seed_demo_items(client):
@@ -411,6 +710,49 @@ def test_list_opinions_keyword_filter(client):
     assert "财报" in body["items"][0]["title"]
 
 
+def test_list_opinions_uses_fts_for_ascii_keyword(client):
+    client.post("/api/auth/login", json={"username": "risk", "password": "risk123"})
+    db = Session(_engine())
+    try:
+        source = db.query(DataSource).filter(DataSource.code == "import_csv").one()
+        db.add(OpinionItem(
+            source_id=source.id,
+            source_code=source.code,
+            source_type=source.source_type,
+            title="Alpha rocket launch",
+            content="UniqueToken safety telemetry",
+            content_hash="fts-ascii-keyword",
+            origin="import_csv",
+        ))
+        db.commit()
+    finally:
+        db.close()
+
+    statements: list[str] = []
+
+    def capture(_conn, _cursor, statement, _parameters, _context, _executemany):
+        statements.append(statement.lower())
+
+    event.listen(_engine(), "before_cursor_execute", capture)
+    try:
+        res = client.get("/api/opinions?q=UniqueToken")
+    finally:
+        event.remove(_engine(), "before_cursor_execute", capture)
+
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["total"] == 1
+    assert body["items"][0]["title"] == "Alpha rocket launch"
+
+    opinion_count_selects = [
+        statement for statement in statements
+        if "from opinion_items" in statement and "count" in statement
+    ]
+    assert opinion_count_selects
+    assert not any(" like " in statement for statement in opinion_count_selects)
+    assert any("opinion_item_fts" in statement and " match " in statement for statement in statements)
+
+
 def test_list_opinions_source_filter(client):
     _seed_demo_items(client)
     client.post("/api/auth/login", json={"username": "risk", "password": "risk123"})
@@ -456,6 +798,8 @@ def test_datasources_page_renders_for_admin(client):
     assert res.status_code == 200
     body = res.text
     assert "数据源" in body
+    assert "关键词监控" in body
+    assert "测试抓取" in body
 
 
 def test_datasources_page_403_for_viewer(client):

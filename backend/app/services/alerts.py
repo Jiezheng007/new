@@ -32,7 +32,7 @@ from datetime import datetime
 from typing import Any, Optional
 
 from sqlalchemy import func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, contains_eager, joinedload
 
 from app.models.alert import (
     ALERT_STATUS_CONFIRMED,
@@ -162,7 +162,14 @@ def list_alerts(
     Joins to ``OpinionItem`` so source + keyword filters work in a single
     query. Ordered by created_at desc with id desc as the tiebreaker.
     """
-    query = _base_query(db).join(OpinionItem, OpinionItem.id == Alert.opinion_item_id)
+    query = (
+        _base_query(db)
+        .join(OpinionItem, OpinionItem.id == Alert.opinion_item_id)
+        .options(
+            contains_eager(Alert.opinion_item).joinedload(OpinionItem.source),
+            contains_eager(Alert.opinion_item).joinedload(OpinionItem.analysis_result),
+        )
+    )
     count_query = db.query(func.count(Alert.id)).join(
         OpinionItem, OpinionItem.id == Alert.opinion_item_id
     )
