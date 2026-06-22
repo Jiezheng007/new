@@ -80,11 +80,12 @@ if _is_sqlite:
 engine = create_engine(
     _settings.database_url,
     connect_args=_connect_args,
+    pool_size=200,
+    max_overflow=200,
+    pool_timeout=60,
     future=True,
 )
 register_sqlite_pragmas(engine)
-
-
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
 
 
