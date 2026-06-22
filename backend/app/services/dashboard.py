@@ -64,8 +64,12 @@ TREND_WINDOW_DAYS = 7
 # without scrolling.
 LATEST_ALERTS_LIMIT = 5
 
+import threading
+
 _DashboardCacheKey = tuple[str, str, int]
 _dashboard_summary_cache: dict[_DashboardCacheKey, tuple[float, DashboardSummaryOut]] = {}
+_dashboard_locks: dict[_DashboardCacheKey, threading.Lock] = {}
+_dashboard_global_lock = threading.Lock()
 
 
 # ---------- permission predicates ----------
@@ -345,76 +349,94 @@ def build_dashboard_summary(db: Session, viewer: User) -> DashboardSummaryOut:
     cache_ttl = max(0, int(settings.dashboard_summary_cache_ttl_seconds))
     cache_key = _dashboard_cache_key(db, viewer)
     now_monotonic = time.monotonic()
+
     if cache_ttl > 0:
         cached = _get_cached_dashboard_summary(cache_key, now_monotonic)
         if cached is not None:
             return cached
 
-    now = datetime.now(timezone.utc)
-    today_utc = now.date()
-    role_code = viewer.role.code
+        with _dashboard_global_lock:
+            if cache_key not in _dashboard_locks:
+                _dashboard_locks[cache_key] = threading.Lock()
+            key_lock = _dashboard_locks[cache_key]
 
-    out_kwargs: dict[str, Any] = {
-        "role_scope": role_code,
-        "generated_at": now,
-    }
+        key_lock.acquire()
 
-    # Opinion aggregate.
-    if _has_opinion_read(role_code):
-        agg = _opinion_aggregate(db)
-        out_kwargs.update(
-            opinion_total=agg["total"],
-            opinion_analyzed_total=agg["analyzed"],
-            opinion_negative_total=agg["negative"],
-            opinion_negative_ratio=round(agg["negative_ratio"], 4),
-            trend=_opinion_trend(db, today_utc),
-        )
-    else:
-        out_kwargs.update(
-            opinion_total=None,
-            opinion_analyzed_total=None,
-            opinion_negative_total=None,
-            opinion_negative_ratio=None,
-            trend=[],
-        )
+    try:
+        if cache_ttl > 0:
+            now_monotonic = time.monotonic()
+            cached = _get_cached_dashboard_summary(cache_key, now_monotonic)
+            if cached is not None:
+                return cached
 
-    # Alert aggregate.
-    if _has_alert_read(role_code):
-        status_counts = _alert_status_counts(db)
-        out_kwargs.update(
-            alerts_high_or_severe_total=_alert_high_or_severe_total(db),
-            alerts_pending=status_counts[ALERT_STATUS_PENDING],
-            alerts_confirmed=status_counts[ALERT_STATUS_CONFIRMED],
-            alerts_ignored=status_counts[ALERT_STATUS_IGNORED],
-            latest_alerts=_latest_alerts(db, LATEST_ALERTS_LIMIT),
-        )
-    else:
-        out_kwargs.update(
-            alerts_high_or_severe_total=None,
-            alerts_pending=None,
-            alerts_confirmed=None,
-            alerts_ignored=None,
-            latest_alerts=[],
-        )
+        now = datetime.now(timezone.utc)
+        today_utc = now.date()
+        role_code = viewer.role.code
 
-    # Ticket aggregate.
-    if _has_ticket_read(role_code):
-        ticket_counts = _ticket_status_counts(db, viewer)
-        out_kwargs.update(
-            tickets_unassigned=ticket_counts.get("unassigned", 0),
-            tickets_in_progress=ticket_counts.get("in_progress", 0),
-            tickets_completed=ticket_counts.get("completed", 0),
-            tickets_archived=ticket_counts.get("archived", 0),
-        )
-    else:
-        out_kwargs.update(
-            tickets_unassigned=None,
-            tickets_in_progress=None,
-            tickets_completed=None,
-            tickets_archived=None,
-        )
+        out_kwargs: dict[str, Any] = {
+            "role_scope": role_code,
+            "generated_at": now,
+        }
 
-    summary = DashboardSummaryOut(**out_kwargs)
-    if cache_ttl > 0:
-        _dashboard_summary_cache[cache_key] = (now_monotonic + cache_ttl, summary)
-    return summary
+        # Opinion aggregate.
+        if _has_opinion_read(role_code):
+            agg = _opinion_aggregate(db)
+            out_kwargs.update(
+                opinion_total=agg["total"],
+                opinion_analyzed_total=agg["analyzed"],
+                opinion_negative_total=agg["negative"],
+                opinion_negative_ratio=round(agg["negative_ratio"], 4),
+                trend=_opinion_trend(db, today_utc),
+            )
+        else:
+            out_kwargs.update(
+                opinion_total=None,
+                opinion_analyzed_total=None,
+                opinion_negative_total=None,
+                opinion_negative_ratio=None,
+                trend=[],
+            )
+
+        # Alert aggregate.
+        if _has_alert_read(role_code):
+            status_counts = _alert_status_counts(db)
+            out_kwargs.update(
+                alerts_high_or_severe_total=_alert_high_or_severe_total(db),
+                alerts_pending=status_counts[ALERT_STATUS_PENDING],
+                alerts_confirmed=status_counts[ALERT_STATUS_CONFIRMED],
+                alerts_ignored=status_counts[ALERT_STATUS_IGNORED],
+                latest_alerts=_latest_alerts(db, LATEST_ALERTS_LIMIT),
+            )
+        else:
+            out_kwargs.update(
+                alerts_high_or_severe_total=None,
+                alerts_pending=None,
+                alerts_confirmed=None,
+                alerts_ignored=None,
+                latest_alerts=[],
+            )
+
+        # Ticket aggregate.
+        if _has_ticket_read(role_code):
+            ticket_counts = _ticket_status_counts(db, viewer)
+            out_kwargs.update(
+                tickets_unassigned=ticket_counts.get("unassigned", 0),
+                tickets_in_progress=ticket_counts.get("in_progress", 0),
+                tickets_completed=ticket_counts.get("completed", 0),
+                tickets_archived=ticket_counts.get("archived", 0),
+            )
+        else:
+            out_kwargs.update(
+                tickets_unassigned=None,
+                tickets_in_progress=None,
+                tickets_completed=None,
+                tickets_archived=None,
+            )
+
+        summary = DashboardSummaryOut(**out_kwargs)
+        if cache_ttl > 0:
+            _dashboard_summary_cache[cache_key] = (now_monotonic + cache_ttl, summary)
+        return summary
+    finally:
+        if cache_ttl > 0:
+            key_lock.release()

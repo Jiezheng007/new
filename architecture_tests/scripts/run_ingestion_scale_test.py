@@ -55,8 +55,10 @@ def main():
 
     # 1. 启动服务
     print(f"\n{Colors.HEADER}[1/4]{Colors.ENDC} 启动后台服务并预热...")
-    server_process = run_command([sys.executable, "-m", "uvicorn", "app.main:app"], cwd=BACKEND_DIR, wait=False)
-    time.sleep(5)
+    os.environ["no_proxy"] = "*"
+    os.environ["NO_PROXY"] = "*"
+    server_process = run_command([sys.executable, "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"], cwd=BACKEND_DIR, wait=False)
+    time.sleep(15)
 
     try:
         # 2. 登录获取 Token

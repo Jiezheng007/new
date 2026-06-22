@@ -174,8 +174,11 @@ def main():
 
         try:
             print(f"{Colors.OKBLUE}[{count}级别] 3. 启动后台服务...{Colors.ENDC}")
-            server_process = run_command([sys.executable, "-m", "uvicorn", "app.main:app"], cwd=BACKEND_DIR, wait=False)
-            time.sleep(4)
+            os.environ["no_proxy"] = "*"
+            os.environ["NO_PROXY"] = "*"
+            server_process = run_command([sys.executable, "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"], cwd=BACKEND_DIR, wait=False)
+            print(f"{Colors.OKBLUE}[{count}级别] 3.1 等待服务完全启动 (15秒)...{Colors.ENDC}")
+            time.sleep(15)
 
             print(f"{Colors.OKBLUE}[{count}级别] 4. 启动系统后台“数据源抓取”干扰...{Colors.ENDC}")
             collision_script = SCRIPT_DIR / "temp_collision.py"
@@ -199,7 +202,7 @@ for t in threads: t.start()
             
             locust_cmd = [
                 "locust", "-f", str(LOCUST_FILE),
-                "--host=http://localhost:8000",
+                "--host=http://127.0.0.1:8000",
                 "--headless", "-u", str(USERS), "-r", str(SPAWN_RATE),
                 "--run-time", RUN_TIME,
                 f"--csv={results_prefix}"

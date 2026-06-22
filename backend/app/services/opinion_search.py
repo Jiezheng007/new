@@ -34,12 +34,10 @@ def ensure_opinion_fts(db: Session) -> None:
         "USING fts5(opinion_item_id UNINDEXED, title, content)"
     ))
     db.execute(text(
-        "INSERT INTO opinion_item_fts(opinion_item_id, title, content) "
-        "SELECT oi.id, oi.title, oi.content "
+        "INSERT INTO opinion_item_fts(rowid, opinion_item_id, title, content) "
+        "SELECT oi.id, oi.id, oi.title, oi.content "
         "FROM opinion_items oi "
-        "WHERE NOT EXISTS ("
-        "  SELECT 1 FROM opinion_item_fts f WHERE f.opinion_item_id = oi.id"
-        ")"
+        "WHERE oi.id NOT IN (SELECT rowid FROM opinion_item_fts)"
     ))
 
 
@@ -73,13 +71,13 @@ def sync_opinion_fts_rows(db: Session, items: list[OpinionItem]) -> None:
     try:
         ensure_opinion_fts(db)
         db.execute(
-            text("DELETE FROM opinion_item_fts WHERE opinion_item_id = :opinion_item_id"),
+            text("DELETE FROM opinion_item_fts WHERE rowid = :opinion_item_id"),
             [{"opinion_item_id": item.id} for item in items],
         )
         db.execute(
             text(
-                "INSERT INTO opinion_item_fts(opinion_item_id, title, content) "
-                "VALUES (:opinion_item_id, :title, :content)"
+                "INSERT INTO opinion_item_fts(rowid, opinion_item_id, title, content) "
+                "VALUES (:opinion_item_id, :opinion_item_id, :title, :content)"
             ),
             [
                 {
