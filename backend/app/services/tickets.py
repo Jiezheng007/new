@@ -40,7 +40,7 @@ from datetime import datetime
 from typing import Any, Optional
 
 from sqlalchemy import func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, contains_eager, joinedload
 
 from app.models.alert import (
     ALERT_STATUS_CONFIRMED,
@@ -333,7 +333,15 @@ def list_tickets(
     list (viewer should rarely reach this endpoint, but if they do
     they get a 403 upstream anyway).
     """
-    query = _base_query(db).join(OpinionItem, OpinionItem.id == Ticket.opinion_item_id)
+    query = (
+        _base_query(db)
+        .join(OpinionItem, OpinionItem.id == Ticket.opinion_item_id)
+        .options(
+            contains_eager(Ticket.opinion_item).joinedload(OpinionItem.source),
+            contains_eager(Ticket.opinion_item).joinedload(OpinionItem.analysis_result),
+            joinedload(Ticket.alert),
+        )
+    )
     count_query = db.query(func.count(Ticket.id)).join(
         OpinionItem, OpinionItem.id == Ticket.opinion_item_id
     )

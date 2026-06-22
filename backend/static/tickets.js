@@ -193,7 +193,13 @@
     document.getElementById("tkSummary").textContent = summary;
   };
 
-  const load = async () => {
+  const scrollToTicketList = () => {
+    const panel = document.getElementById("ticketListPanel");
+    if (!panel) return;
+    panel.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const load = async ({ scrollToList = false } = {}) => {
     const status = document.getElementById("tkStatus");
     setStatus(status, "");
     const [listRes, summaryRes] = await Promise.all([
@@ -208,6 +214,9 @@
     renderRows(body.items);
     renderPager();
     setStatus(status, `已加载 ${body.items.length} 条`);
+    if (scrollToList) {
+      requestAnimationFrame(scrollToTicketList);
+    }
     if (summaryRes.ok) {
       const s = await summaryRes.json();
       renderSummary(s);
@@ -225,7 +234,7 @@
       end_at: toIsoSeconds(document.getElementById("tk_end").value),
     };
     state.offset = 0;
-    load();
+    load({ scrollToList: true });
   };
 
   const resetFilter = () => {

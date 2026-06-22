@@ -78,6 +78,22 @@ class ScoreResult:
     explanation: list[str] = field(default_factory=list)
 
 
+@dataclass(frozen=True)
+class ScoringRules:
+    sensitive_rows: list[SensitiveKeyword]
+    subject_rows: list[SubjectKeyword]
+    thresholds: list[RiskThreshold]
+
+
+def load_scoring_rules(db: Session) -> ScoringRules:
+    """Load the rule tables used by risk scoring once for a batch."""
+    return ScoringRules(
+        sensitive_rows=_active_keywords(db.query(SensitiveKeyword).all()),
+        subject_rows=_active_keywords(db.query(SubjectKeyword).all()),
+        thresholds=db.query(RiskThreshold).all(),
+    )
+
+
 def _active_keywords(rows: Iterable[SensitiveKeyword]) -> list[SensitiveKeyword]:
     return [r for r in rows if r.is_active]
 
@@ -131,6 +147,7 @@ def compute_risk(
     db: Session,
     opinion: OpinionItem,
     nlp_result: NlpResult,
+    rules: ScoringRules | None = None,
 ) -> ScoreResult:
     """Combine NLP output with the current rule set into a ScoreResult.
 
@@ -142,12 +159,11 @@ def compute_risk(
     text = f"{opinion.title or ''}\n{opinion.content or ''}"
     sentiment_contrib = SENTIMENT_CONTRIB.get(nlp_result.sentiment, 0)
 
-    sensitive_rows = _active_keywords(db.query(SensitiveKeyword).all())
-    subject_rows = _active_keywords(db.query(SubjectKeyword).all())
-    thresholds = db.query(RiskThreshold).all()
+    if rules is None:
+        rules = load_scoring_rules(db)
 
-    sensitive_hits = _match_keywords(text, sensitive_rows)
-    subject_hits = _match_subject_keywords(text, subject_rows)
+    sensitive_hits = _match_keywords(text, rules.sensitive_rows)
+    subject_hits = _match_subject_keywords(text, rules.subject_rows)
 
     sensitive_contrib = 0
     sensitive_breakdown: list[dict[str, Any]] = []
@@ -185,7 +201,7 @@ def compute_risk(
     )
     total = min(raw_total, TOTAL_CAP)
 
-    level = _level_for_score(total, thresholds)
+    level = _level_for_score(total, rules.thresholds)
 
     factors: dict[str, Any] = {
         "sentiment": {

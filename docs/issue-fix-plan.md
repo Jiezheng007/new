@@ -51,7 +51,7 @@ backend/app/
 | **#8** | 报告中心按钮无反应 | **前端** | 后端 `POST /api/reports` + `BackgroundTasks` 完整,JS 事件未绑定或回调未刷新列表 | `backend/static/reports.js` |
 | **#6** | 无法生成报告 | 前端+后端 | 同 #8,后端 `process_report_task` 在 #5 死锁时会被 timeout 牵连失败 | `reports.js` + `reports.py` |
 | **#4** | 情绪分析错误 | 后端 | `KeywordNlpProvider` 是**简单关键词计数器**,词典 ~50 词,不覆盖"不是正面""也不是负面"这类反讽/否定句 | `app/services/nlp/keyword.py` |
-| **#3** | 数据源无删除 | **前端+后端** | `api/datasources.py` **缺 `DELETE` 端点**,前端也无删除按钮 | `app/api/datasources.py` + `static/datasources.js` |
+| **#3** | 数据源无删除 | **前端+后端** | `api/datasources.py` **缺 `DELETE` 端点**,前端也无删除按钮 | `app/api/datasources.py` + `static/datasources.js` | ✅ DONE 2026-06-17 — 新增删除 API、列表删除按钮；支持勾选后级联删除历史舆情及相关数据 |
 | **#1** | 微博抓取失败 | **配置/UX** | 不是 bug。用户用了 `api.weibo.com` OAuth 接口(需要鉴权),但 `WeiboConnector` 设计是消费 JSON feed。错误消息已经说明了 | 文档 + 前端表单提示 |
 | **#2** | RSS 抓取失败 | **配置/UX** | 不是 bug。用户填的 `https://rss.sina.com.cn/news/allnews/roll.xml` **新浪已下线**(404),需要换成有效 RSS | 文档 + 前端可用 RSS 列表 |
 
@@ -173,7 +173,7 @@ backend/app/
 - [x] **#5**:`pytest tests/test_db.py -v` → 8 passed;`pytest` → 310 passed(均在 conda 环境 `yuqing-test` 下)
 - [ ] **#7**:管理员 / 风控账号登录,创建 pending 预警,点确认 / 忽略按钮 → 数据库状态翻转
 - [ ] **#8 / #6**:管理员登录 → 创建报告 → 看 `reports.js` 控制台 → 后端日志 `report.create` audit 行
-- [ ] **#3**:删除数据源 → 级联或软删验证 → 列表 UI 刷新
+- [x] **#3**:删除数据源 → 无关联数据可删除并刷新列表;勾选后可级联删除历史舆情、分析结果、预警和工单
 - [ ] **#4**:`pytest tests/test_nlp.py -k negative` + 手动跑"这个不是正面的评价"应判负
 - [ ] **#1 / #2**:README 步骤走一遍能否复现 / 解决
 

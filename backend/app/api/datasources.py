@@ -7,23 +7,32 @@ cannot drift apart. Every state change writes an audit row.
 """
 from __future__ import annotations
 
+import json
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
 from app.db.session import get_db
-from app.models.datasource import DataSource
+from app.models.alert import Alert
+from app.models.analysis import AnalysisResult
+from app.models.datasource import DataSource, OpinionItem
 from app.models.role_codes import RoleCode
+from app.models.ticket import Ticket
 from app.models.user import User
 from app.schemas.datasources import (
     DataSourceCreate,
     DataSourceOut,
+    DataSourceTestRequest,
+    DataSourceTestResult,
+    DataSourceTestSample,
     DataSourceUpdate,
     FetchResult,
 )
 from app.services.audit import get_client_ip, record_audit
+from app.services.connectors import ConnectorError, SOURCE_TYPE_NEWS_SEARCH, get_connector
 from app.services.datasource_fetch import ORIGIN_MANUAL, fetch_datasource
 
 
@@ -39,20 +48,24 @@ def _require_admin(user: User = Depends(get_current_user)) -> User:
     return user
 
 
-def _serialize(row: DataSource) -> dict[str, Any]:
+def _serialize(row: DataSource, item_count: int | None = None) -> dict[str, Any]:
     return {
         "id": row.id,
         "code": row.code,
         "name": row.name,
         "source_type": row.source_type,
         "url": row.url,
+        "query": row.query,
+        "fetch_interval_minutes": row.fetch_interval_minutes,
+        "max_items_per_fetch": row.max_items_per_fetch,
+        "config": _loads_config(row.config_json),
         "weight": row.weight,
         "is_enabled": row.is_enabled,
         "description": row.description,
         "latest_fetch_at": row.latest_fetch_at,
         "latest_fetch_status": row.latest_fetch_status,
         "latest_fetch_message": row.latest_fetch_message,
-        "latest_items_count": row.latest_items_count,
+        "latest_items_count": row.latest_items_count if item_count is None else item_count,
         "created_at": row.created_at,
         "updated_at": row.updated_at,
     }
@@ -64,7 +77,12 @@ def list_datasources(
     _: User = Depends(_require_admin),
 ) -> list[DataSourceOut]:
     rows = db.query(DataSource).order_by(DataSource.id.asc()).all()
-    return [DataSourceOut(**_serialize(r)) for r in rows]
+    item_counts = dict(
+        db.query(OpinionItem.source_id, func.count(OpinionItem.id))
+        .group_by(OpinionItem.source_id)
+        .all()
+    )
+    return [DataSourceOut(**_serialize(r, item_counts.get(r.id, 0))) for r in rows]
 
 
 @router.post("", response_model=DataSourceOut, status_code=status.HTTP_201_CREATED)
@@ -93,7 +111,11 @@ def create_datasource(
         code=payload.code,
         name=payload.name,
         source_type=payload.source_type,
-        url=payload.url,
+        url=payload.url.strip(),
+        query=payload.query.strip(),
+        fetch_interval_minutes=payload.fetch_interval_minutes,
+        max_items_per_fetch=payload.max_items_per_fetch,
+        config_json=_dumps_config(payload.config),
         weight=payload.weight,
         is_enabled=payload.is_enabled,
         description=payload.description,
@@ -107,12 +129,62 @@ def create_datasource(
         target_type="datasource",
         target_id=str(row.id),
         result="success",
-        detail={"code": row.code, "source_type": row.source_type, "weight": row.weight, "is_enabled": row.is_enabled},
+        detail={
+            "code": row.code,
+            "source_type": row.source_type,
+            "query": row.query,
+            "weight": row.weight,
+            "is_enabled": row.is_enabled,
+        },
         ip_address=ip,
     )
     db.commit()
     db.refresh(row)
     return DataSourceOut(**_serialize(row))
+
+
+@router.post("/test", response_model=DataSourceTestResult)
+def test_datasource_config(
+    payload: DataSourceTestRequest,
+    db: Session = Depends(get_db),
+    _: User = Depends(_require_admin),
+) -> DataSourceTestResult:
+    source = DataSource(
+        code="__test__",
+        name="test",
+        source_type=payload.source_type,
+        url=payload.url.strip(),
+        query=payload.query.strip(),
+        max_items_per_fetch=payload.max_items_per_fetch,
+        config_json=_dumps_config(payload.config),
+    )
+    try:
+        records = get_connector(source.source_type).fetch(source)
+    except ConnectorError as e:
+        return DataSourceTestResult(
+            ok=False,
+            sample_count=0,
+            samples=[],
+            error_code="fetch_failed",
+            message=_friendly_fetch_error(payload.source_type, str(e)),
+        )
+
+    samples = [
+        DataSourceTestSample(
+            title=r.title,
+            content=r.content,
+            url=r.url,
+            author=r.author,
+            published_at=r.published_at,
+        )
+        for r in records[: payload.max_items_per_fetch]
+    ]
+    return DataSourceTestResult(
+        ok=True,
+        sample_count=len(samples),
+        samples=samples,
+        message=f"测试成功,可抓取 {len(samples)} 条样例",
+    )
 
 
 @router.get("/{source_id}", response_model=DataSourceOut)
@@ -153,6 +225,28 @@ def update_datasource(
         after["url"] = payload.url
         changes["url"] = payload.url
         row.url = payload.url
+    if payload.query is not None and payload.query != row.query:
+        before["query"] = row.query
+        after["query"] = payload.query
+        changes["query"] = payload.query
+        row.query = payload.query
+    if payload.fetch_interval_minutes is not None and payload.fetch_interval_minutes != row.fetch_interval_minutes:
+        before["fetch_interval_minutes"] = row.fetch_interval_minutes
+        after["fetch_interval_minutes"] = payload.fetch_interval_minutes
+        changes["fetch_interval_minutes"] = payload.fetch_interval_minutes
+        row.fetch_interval_minutes = payload.fetch_interval_minutes
+    if payload.max_items_per_fetch is not None and payload.max_items_per_fetch != row.max_items_per_fetch:
+        before["max_items_per_fetch"] = row.max_items_per_fetch
+        after["max_items_per_fetch"] = payload.max_items_per_fetch
+        changes["max_items_per_fetch"] = payload.max_items_per_fetch
+        row.max_items_per_fetch = payload.max_items_per_fetch
+    if payload.config is not None:
+        config_json = _dumps_config(payload.config)
+        if config_json != row.config_json:
+            before["config"] = _loads_config(row.config_json)
+            after["config"] = payload.config
+            changes["config"] = payload.config
+            row.config_json = config_json
     if payload.weight is not None and payload.weight != row.weight:
         before["weight"] = row.weight
         after["weight"] = payload.weight
@@ -197,6 +291,98 @@ def update_datasource(
     db.commit()
     db.refresh(row)
     return DataSourceOut(**_serialize(row))
+
+
+@router.delete("/{source_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
+def delete_datasource(
+    source_id: int,
+    request: Request,
+    cascade: bool = False,
+    db: Session = Depends(get_db),
+    admin: User = Depends(_require_admin),
+) -> Response:
+    ip = get_client_ip(request)
+    row = db.get(DataSource, source_id)
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="数据源不存在")
+
+    has_items = (
+        db.query(OpinionItem.id).filter(OpinionItem.source_id == source_id).first() is not None
+    )
+    if has_items:
+        if not cascade:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="该数据源已有历史舆情数据,不能删除。你可以勾选同时删除相关数据,或停用该数据源以停止后续抓取。",
+            )
+        deleted = _delete_datasource_related_rows(db, source_id)
+    else:
+        deleted = _empty_deleted_counts()
+
+    detail = {
+        "code": row.code,
+        "name": row.name,
+        "source_type": row.source_type,
+        "cascade": cascade,
+        "deleted": deleted,
+    }
+    db.delete(row)
+    record_audit(
+        db,
+        actor=admin,
+        action="datasource.delete",
+        target_type="datasource",
+        target_id=str(source_id),
+        result="success",
+        detail=detail,
+        ip_address=ip,
+    )
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+def _empty_deleted_counts() -> dict[str, int]:
+    return {"opinion_items": 0, "analysis_results": 0, "alerts": 0, "tickets": 0}
+
+
+def _delete_datasource_related_rows(db: Session, source_id: int) -> dict[str, int]:
+    opinion_ids = [
+        row[0]
+        for row in db.query(OpinionItem.id).filter(OpinionItem.source_id == source_id).all()
+    ]
+    if not opinion_ids:
+        return _empty_deleted_counts()
+
+    alert_ids = [
+        row[0]
+        for row in db.query(Alert.id).filter(Alert.opinion_item_id.in_(opinion_ids)).all()
+    ]
+    ticket_filter = Ticket.opinion_item_id.in_(opinion_ids)
+    if alert_ids:
+        ticket_filter = or_(ticket_filter, Ticket.alert_id.in_(alert_ids))
+    ticket_query = db.query(Ticket).filter(ticket_filter)
+    ticket_count = ticket_query.delete(synchronize_session=False)
+    alert_count = (
+        db.query(Alert)
+        .filter(Alert.opinion_item_id.in_(opinion_ids))
+        .delete(synchronize_session=False)
+    )
+    analysis_count = (
+        db.query(AnalysisResult)
+        .filter(AnalysisResult.opinion_item_id.in_(opinion_ids))
+        .delete(synchronize_session=False)
+    )
+    opinion_count = (
+        db.query(OpinionItem)
+        .filter(OpinionItem.id.in_(opinion_ids))
+        .delete(synchronize_session=False)
+    )
+    return {
+        "opinion_items": opinion_count,
+        "analysis_results": analysis_count,
+        "alerts": alert_count,
+        "tickets": ticket_count,
+    }
 
 
 @router.post("/{source_id}/fetch", response_model=FetchResult)
@@ -244,3 +430,25 @@ def manual_fetch(
         message=outcome.message,
         fetched_at=source.latest_fetch_at,
     )
+
+
+def _dumps_config(config: dict[str, Any]) -> str:
+    return json.dumps(config or {}, ensure_ascii=False, sort_keys=True)
+
+
+def _loads_config(config_json: str) -> dict[str, Any]:
+    try:
+        value = json.loads(config_json or "{}")
+    except json.JSONDecodeError:
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
+def _friendly_fetch_error(source_type: str, message: str) -> str:
+    if source_type == SOURCE_TYPE_NEWS_SEARCH:
+        return message
+    if source_type == "rss" and "404" in message:
+        return "该 RSS 地址返回 404,可能已失效或填写错误。请更换有效 RSS 地址,或使用关键词新闻监控。"
+    if source_type == "weibo" or "Weibo" in message:
+        return "该微博地址无法直接抓取。当前仅支持可公开访问、返回微博-like JSON 的接口;微博官方 OAuth API 或公开页面不在第一阶段支持范围内。"
+    return message

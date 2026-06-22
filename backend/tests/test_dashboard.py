@@ -18,6 +18,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 from fastapi.testclient import TestClient
+from sqlalchemy import event
 from sqlalchemy.orm import Session
 
 from app.db import session as session_module
@@ -32,6 +33,8 @@ from app.models.analysis import (
 from app.models.datasource import DataSource, OpinionItem
 from app.models.role_codes import RoleCode
 from app.models.ticket import Ticket
+from app.models.user import User
+from app.services.dashboard import build_dashboard_summary
 from app.services.nlp import SENTIMENT_NEGATIVE
 
 
@@ -325,6 +328,51 @@ def test_trend_uses_created_at_when_published_at_missing(client: TestClient) -> 
     # And every bucket that should have content shows up.
     for d in expected_dates:
         assert d in {p["date"] for p in body["trend"]}
+
+
+def test_summary_reuses_short_ttl_cache_for_same_user(client: TestClient) -> None:
+    _login(client, "admin", "admin123")
+    first = _get_summary(client)
+    assert first["opinion_total"] == 0
+
+    db = _session()
+    try:
+        source = db.query(DataSource).filter(DataSource.code == "demo_static").one()
+        db.add(OpinionItem(
+            source_id=source.id,
+            source_code=source.code,
+            source_type=source.source_type,
+            external_id="cache-check-001",
+            title="cache check",
+            content="cache check content",
+            content_hash="cache-check-001",
+        ))
+        db.commit()
+    finally:
+        db.close()
+
+    second = _get_summary(client)
+    assert second["opinion_total"] == first["opinion_total"]
+    assert second["generated_at"] == first["generated_at"]
+
+
+def test_dashboard_trend_queries_do_not_filter_with_coalesce(client: TestClient) -> None:
+    _seed_static_demo(client)
+    db = _session()
+    statements: list[str] = []
+
+    def _capture(_conn, _cursor, statement, _parameters, _context, _executemany):
+        statements.append(statement.lower())
+
+    event.listen(_engine(), "before_cursor_execute", _capture)
+    try:
+        admin = db.query(User).filter_by(username="admin").one()
+        build_dashboard_summary(db, admin)
+    finally:
+        event.remove(_engine(), "before_cursor_execute", _capture)
+        db.close()
+
+    assert not any("coalesce(" in statement for statement in statements)
 
 
 # ---------- latest alerts ----------

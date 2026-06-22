@@ -22,12 +22,14 @@ Why a separate module:
 """
 from __future__ import annotations
 
+import time
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Optional
 
-from sqlalchemy import func, literal_column
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.models.alert import (
     ALERT_STATUS_CONFIRMED,
     ALERT_STATUS_IGNORED,
@@ -61,6 +63,13 @@ TREND_WINDOW_DAYS = 7
 # alerts"; five is a comfortable default that fits the workbench card
 # without scrolling.
 LATEST_ALERTS_LIMIT = 5
+
+import threading
+
+_DashboardCacheKey = tuple[str, str, int]
+_dashboard_summary_cache: dict[_DashboardCacheKey, tuple[float, DashboardSummaryOut]] = {}
+_dashboard_locks: dict[_DashboardCacheKey, threading.Lock] = {}
+_dashboard_global_lock = threading.Lock()
 
 
 # ---------- permission predicates ----------
@@ -110,19 +119,25 @@ def _opinion_event_dates(db: Session, start_window: datetime) -> list[date]:
     The fallback to ``created_at`` is also Python-side to keep the
     rule in one place.
     """
-    rows = (
+    published_rows = (
         db.query(
             OpinionItem.published_at.label("published_at"),
             OpinionItem.created_at.label("created_at"),
         )
-        .filter(
-            func.coalesce(OpinionItem.published_at, OpinionItem.created_at)
-            >= start_window
+        .filter(OpinionItem.published_at >= start_window)
+        .all()
+    )
+    fallback_rows = (
+        db.query(
+            OpinionItem.published_at.label("published_at"),
+            OpinionItem.created_at.label("created_at"),
         )
+        .filter(OpinionItem.published_at.is_(None))
+        .filter(OpinionItem.created_at >= start_window)
         .all()
     )
     out: list[date] = []
-    for row in rows:
+    for row in [*published_rows, *fallback_rows]:
         ts = row.published_at or row.created_at
         if ts is None:
             continue
@@ -150,7 +165,7 @@ def _opinion_trend(db: Session, today_utc: date) -> list[DashboardTrendPoint]:
     # analysis table. We restrict to successful analyses so a row
     # still in ``pending`` state is not counted as negative just
     # because its default label is unset.
-    analyzed_rows = (
+    analyzed_query = (
         db.query(
             OpinionItem.published_at.label("published_at"),
             OpinionItem.created_at.label("created_at"),
@@ -158,13 +173,14 @@ def _opinion_trend(db: Session, today_utc: date) -> list[DashboardTrendPoint]:
             AnalysisResult.level.label("level"),
         )
         .join(AnalysisResult, AnalysisResult.opinion_item_id == OpinionItem.id)
-        .filter(
-            func.coalesce(OpinionItem.published_at, OpinionItem.created_at)
-            >= start_window
-        )
         .filter(AnalysisResult.status == ANALYSIS_STATUS_SUCCESS)
-        .all()
     )
+    analyzed_rows = [
+        *analyzed_query.filter(OpinionItem.published_at >= start_window).all(),
+        *analyzed_query.filter(OpinionItem.published_at.is_(None))
+        .filter(OpinionItem.created_at >= start_window)
+        .all(),
+    ]
 
     totals: dict[date, int] = {}
     negatives: dict[date, int] = {}
@@ -302,6 +318,23 @@ def _ticket_status_counts(db: Session, viewer: User) -> dict[str, int]:
 # ---------- public entry point ----------
 
 
+def _dashboard_cache_key(db: Session, viewer: User) -> _DashboardCacheKey:
+    bind = db.get_bind()
+    db_scope = str(getattr(bind, "url", ""))
+    return (db_scope, viewer.role.code, int(viewer.id))
+
+
+def _get_cached_dashboard_summary(key: _DashboardCacheKey, now_monotonic: float) -> DashboardSummaryOut | None:
+    cached = _dashboard_summary_cache.get(key)
+    if cached is None:
+        return None
+    expires_at, summary = cached
+    if expires_at <= now_monotonic:
+        _dashboard_summary_cache.pop(key, None)
+        return None
+    return summary
+
+
 def build_dashboard_summary(db: Session, viewer: User) -> DashboardSummaryOut:
     """Assemble the workbench summary for the calling user.
 
@@ -312,68 +345,98 @@ def build_dashboard_summary(db: Session, viewer: User) -> DashboardSummaryOut:
     authenticated roles so the workbench page never 403s for a user
     who is allowed to see it in the nav.
     """
-    now = datetime.now(timezone.utc)
-    today_utc = now.date()
-    role_code = viewer.role.code
+    settings = get_settings()
+    cache_ttl = max(0, int(settings.dashboard_summary_cache_ttl_seconds))
+    cache_key = _dashboard_cache_key(db, viewer)
+    now_monotonic = time.monotonic()
 
-    out_kwargs: dict[str, Any] = {
-        "role_scope": role_code,
-        "generated_at": now,
-    }
+    if cache_ttl > 0:
+        cached = _get_cached_dashboard_summary(cache_key, now_monotonic)
+        if cached is not None:
+            return cached
 
-    # Opinion aggregate.
-    if _has_opinion_read(role_code):
-        agg = _opinion_aggregate(db)
-        out_kwargs.update(
-            opinion_total=agg["total"],
-            opinion_analyzed_total=agg["analyzed"],
-            opinion_negative_total=agg["negative"],
-            opinion_negative_ratio=round(agg["negative_ratio"], 4),
-            trend=_opinion_trend(db, today_utc),
-        )
-    else:
-        out_kwargs.update(
-            opinion_total=None,
-            opinion_analyzed_total=None,
-            opinion_negative_total=None,
-            opinion_negative_ratio=None,
-            trend=[],
-        )
+        with _dashboard_global_lock:
+            if cache_key not in _dashboard_locks:
+                _dashboard_locks[cache_key] = threading.Lock()
+            key_lock = _dashboard_locks[cache_key]
 
-    # Alert aggregate.
-    if _has_alert_read(role_code):
-        status_counts = _alert_status_counts(db)
-        out_kwargs.update(
-            alerts_high_or_severe_total=_alert_high_or_severe_total(db),
-            alerts_pending=status_counts[ALERT_STATUS_PENDING],
-            alerts_confirmed=status_counts[ALERT_STATUS_CONFIRMED],
-            alerts_ignored=status_counts[ALERT_STATUS_IGNORED],
-            latest_alerts=_latest_alerts(db, LATEST_ALERTS_LIMIT),
-        )
-    else:
-        out_kwargs.update(
-            alerts_high_or_severe_total=None,
-            alerts_pending=None,
-            alerts_confirmed=None,
-            alerts_ignored=None,
-            latest_alerts=[],
-        )
+        key_lock.acquire()
 
-    # Ticket aggregate.
-    if _has_ticket_read(role_code):
-        ticket_counts = _ticket_status_counts(db, viewer)
-        out_kwargs.update(
-            tickets_unassigned=ticket_counts.get("unassigned", 0),
-            tickets_in_progress=ticket_counts.get("in_progress", 0),
-            tickets_completed=ticket_counts.get("completed", 0),
-            tickets_archived=ticket_counts.get("archived", 0),
-        )
-    else:
-        out_kwargs.update(
-            tickets_unassigned=None,
-            tickets_in_progress=None,
-            tickets_completed=None,
-            tickets_archived=None,
-        )
+    try:
+        if cache_ttl > 0:
+            now_monotonic = time.monotonic()
+            cached = _get_cached_dashboard_summary(cache_key, now_monotonic)
+            if cached is not None:
+                return cached
 
-    return DashboardSummaryOut(**out_kwargs)
+        now = datetime.now(timezone.utc)
+        today_utc = now.date()
+        role_code = viewer.role.code
+
+        out_kwargs: dict[str, Any] = {
+            "role_scope": role_code,
+            "generated_at": now,
+        }
+
+        # Opinion aggregate.
+        if _has_opinion_read(role_code):
+            agg = _opinion_aggregate(db)
+            out_kwargs.update(
+                opinion_total=agg["total"],
+                opinion_analyzed_total=agg["analyzed"],
+                opinion_negative_total=agg["negative"],
+                opinion_negative_ratio=round(agg["negative_ratio"], 4),
+                trend=_opinion_trend(db, today_utc),
+            )
+        else:
+            out_kwargs.update(
+                opinion_total=None,
+                opinion_analyzed_total=None,
+                opinion_negative_total=None,
+                opinion_negative_ratio=None,
+                trend=[],
+            )
+
+        # Alert aggregate.
+        if _has_alert_read(role_code):
+            status_counts = _alert_status_counts(db)
+            out_kwargs.update(
+                alerts_high_or_severe_total=_alert_high_or_severe_total(db),
+                alerts_pending=status_counts[ALERT_STATUS_PENDING],
+                alerts_confirmed=status_counts[ALERT_STATUS_CONFIRMED],
+                alerts_ignored=status_counts[ALERT_STATUS_IGNORED],
+                latest_alerts=_latest_alerts(db, LATEST_ALERTS_LIMIT),
+            )
+        else:
+            out_kwargs.update(
+                alerts_high_or_severe_total=None,
+                alerts_pending=None,
+                alerts_confirmed=None,
+                alerts_ignored=None,
+                latest_alerts=[],
+            )
+
+        # Ticket aggregate.
+        if _has_ticket_read(role_code):
+            ticket_counts = _ticket_status_counts(db, viewer)
+            out_kwargs.update(
+                tickets_unassigned=ticket_counts.get("unassigned", 0),
+                tickets_in_progress=ticket_counts.get("in_progress", 0),
+                tickets_completed=ticket_counts.get("completed", 0),
+                tickets_archived=ticket_counts.get("archived", 0),
+            )
+        else:
+            out_kwargs.update(
+                tickets_unassigned=None,
+                tickets_in_progress=None,
+                tickets_completed=None,
+                tickets_archived=None,
+            )
+
+        summary = DashboardSummaryOut(**out_kwargs)
+        if cache_ttl > 0:
+            _dashboard_summary_cache[cache_key] = (now_monotonic + cache_ttl, summary)
+        return summary
+    finally:
+        if cache_ttl > 0:
+            key_lock.release()

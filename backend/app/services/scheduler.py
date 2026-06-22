@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from app.core.config import get_settings
@@ -61,6 +62,19 @@ def is_running() -> bool:
 def scheduler_task_is_alive() -> bool:
     """Whether the background loop task exists and has not been cancelled."""
     return _task is not None and not _task.done()
+
+
+def _source_due_for_fetch(source: DataSource, now: datetime) -> bool:
+    """Whether an enabled auto-fetch source has reached its own interval."""
+    if source.latest_fetch_at is None:
+        return True
+    interval_minutes = int(source.fetch_interval_minutes or 0)
+    if interval_minutes <= 0:
+        return True
+    latest = source.latest_fetch_at
+    if latest.tzinfo is None:
+        latest = latest.replace(tzinfo=timezone.utc)
+    return latest <= now - timedelta(minutes=interval_minutes)
 
 
 async def start_scheduler_if_enabled() -> None:
@@ -143,10 +157,14 @@ async def run_once() -> dict[str, int]:
                 .filter(DataSource.is_enabled.is_(True))
                 .filter(DataSource.source_type.in_(tuple(AUTO_FETCH_TYPES)))
                 .order_by(DataSource.id.asc())
-                .limit(settings.scheduler_fetch_batch_limit)
                 .all()
             )
+            now = datetime.now(timezone.utc)
             for source in sources:
+                if fetched + failed >= settings.scheduler_fetch_batch_limit:
+                    break
+                if not _source_due_for_fetch(source, now):
+                    continue
                 try:
                     outcome = fetch_datasource(
                         db, source, actor=None, origin=ORIGIN_SCHEDULED

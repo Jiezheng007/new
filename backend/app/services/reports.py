@@ -80,6 +80,26 @@ class ReportInputError(Exception):
     reason: str
 
 
+@dataclass
+class _OpinionBatchIterable:
+    """Small iterable wrapper so report generation can stream ORM rows.
+
+    ``_write_excel`` still needs the matched count for overview metadata;
+    keeping it here avoids forcing callers to materialize a list just to
+    support ``len(opinions)``.
+    """
+
+    query: Any
+    batch_size: int
+    matched_count: int
+
+    def __iter__(self):
+        return iter(self.query.yield_per(self.batch_size))
+
+    def __len__(self) -> int:
+        return self.matched_count
+
+
 # ---------- helpers ----------
 
 
@@ -311,10 +331,37 @@ def _autosize(ws) -> None:
         ws.column_dimensions[get_column_letter(col_idx)].width = min(60, max(10, max_len + 2))
 
 
+def _set_detail_column_widths(ws) -> None:
+    """Apply fixed widths to the detail sheet without scanning all cells."""
+    widths = {
+        1: 10,   # 舆情 ID
+        2: 32,   # 标题
+        3: 60,   # 正文
+        4: 20,   # 数据源
+        5: 18,   # 数据源编码
+        6: 16,   # 作者
+        7: 10,   # 语言
+        8: 20,   # 发布时间
+        9: 20,   # 抓取时间
+        10: 42,  # 原文链接
+        11: 12,  # 情感
+        12: 12,  # 风险等级
+        13: 12,  # 风险分数
+        14: 12,  # 置信度
+        15: 14,  # 分析状态
+        16: 16,  # 分析提供方
+        17: 48,  # 分析说明
+        18: 36,  # 错误信息
+    }
+    for col_idx, width in widths.items():
+        ws.column_dimensions[get_column_letter(col_idx)].width = width
+
+
 def _write_excel(
     task: ReportTask,
-    opinions: list[OpinionItem],
+    opinions: Iterable[OpinionItem],
     output_path: Path,
+    matched_count: int,
 ) -> int:
     """Materialize ``opinions`` into a 3-sheet Excel workbook.
 
@@ -338,7 +385,7 @@ def _write_excel(
     overview.append(["结束时间", _safe_str(task.end_at)])
     overview.append(["风险等级过滤", RISK_LABEL.get(task.risk_level, "") if task.risk_level else "全部"])
     overview.append(["关键词过滤", task.subject_keyword or "无"])
-    overview.append(["匹配条数", len(opinions)])
+    overview.append(["匹配条数", matched_count])
     overview.append([])
     overview.append(["按风险等级统计"])
     overview[f"A{overview.max_row}"].font = _BOLD
@@ -482,8 +529,9 @@ def _write_excel(
         for c in (1, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15, 16):
             detail.cell(row=r, column=c).alignment = _CENTER
 
-    for ws in (overview, summary, detail):
+    for ws in (overview, summary):
         _autosize(ws)
+    _set_detail_column_widths(detail)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     wb.save(str(output_path))
@@ -521,29 +569,51 @@ def process_report_task(task_id: int) -> ReportTask:
         session.commit()
 
         try:
-            opinions = (
-                _build_base_query(
-                    session,
-                    start_at=task.start_at,
-                    end_at=task.end_at,
-                    risk_level=task.risk_level,
-                    subject_keyword=task.subject_keyword,
+            base_query = _build_base_query(
+                session,
+                start_at=task.start_at,
+                end_at=task.end_at,
+                risk_level=task.risk_level,
+                subject_keyword=task.subject_keyword,
+            )
+            matched_count = int(base_query.order_by(None).count())
+            max_rows = max(1, int(get_settings().report_max_rows))
+            if matched_count > max_rows:
+                task.status = REPORT_STATUS_FAILED
+                task.matched_count = matched_count
+                task.included_count = 0
+                task.file_path = ""
+                task.file_size_bytes = 0
+                task.completed_at = datetime.now(timezone.utc)
+                task.error_message = (
+                    f"Report matched {matched_count} rows, exceeding the maximum export "
+                    f"limit of {max_rows}. Please narrow the filters and try again."
                 )
-                .order_by(OpinionItem.published_at.desc().nulls_last(), OpinionItem.id.desc())
-                .all()
+                session.add(task)
+                session.commit()
+                return task
+
+            ordered_query = base_query.order_by(
+                OpinionItem.published_at.desc().nulls_last(),
+                OpinionItem.id.desc(),
+            )
+            opinions = _OpinionBatchIterable(
+                query=ordered_query,
+                batch_size=max(1, int(get_settings().report_export_batch_size)),
+                matched_count=matched_count,
             )
             # Materialize the matched count for the list endpoint up
             # front. ``included_count`` is the same number today; the
             # two columns are split so a future "cap rows" or
             # "truncate long content" change can record the
             # difference.
-            task.matched_count = len(opinions)
+            task.matched_count = matched_count
             task.included_count = len(opinions)
 
             root = _storage_root()
             filename = _safe_filename(task.id, datetime.now(timezone.utc))
             output_path = root / filename
-            size = _write_excel(task, opinions, output_path)
+            size = _write_excel(task, opinions, output_path, matched_count)
 
             # Re-fetch after the write so the final state we
             # commit is from a fresh row, not the possibly-stale

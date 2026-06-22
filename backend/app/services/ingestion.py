@@ -19,6 +19,11 @@ from sqlalchemy.orm import Session
 
 from app.models.datasource import DataSource, OpinionItem
 from app.services.connectors import BaseConnector, RawRecord
+from app.services.opinion_search import sync_opinion_fts_rows
+
+
+HASH_LOOKUP_CHUNK_SIZE = 500
+INGEST_FLUSH_BATCH_SIZE = 500
 
 
 @dataclass
@@ -42,14 +47,9 @@ def ingest_records(
 ) -> IngestionResult:
     """Persist a stream of records under the given source. Caller commits."""
     result = IngestionResult()
-    # Pre-load existing hashes for this source so we can detect duplicates in
-    # one query rather than per-record.
-    existing_hashes: set[str] = {
-        row[0]
-        for row in db.query(OpinionItem.content_hash)
-        .filter(OpinionItem.source_id == source.id)
-        .all()
-    }
+
+    cleaned_records: list[tuple[int, RawRecord, str]] = []
+    incoming_hashes: set[str] = set()
 
     for index, record in enumerate(records):
         try:
@@ -65,7 +65,19 @@ def ingest_records(
             continue
 
         content_hash = BaseConnector.compute_content_hash(source.code, cleaned.title, cleaned.content)
+        cleaned_records.append((index, cleaned, content_hash))
+        incoming_hashes.add(content_hash)
+
+    existing_hashes = _existing_hashes_for_batch(db, source.id, incoming_hashes)
+    seen_hashes: set[str] = set()
+    pending_items: list[OpinionItem] = []
+
+    for index, cleaned, content_hash in cleaned_records:
         if content_hash in existing_hashes:
+            result.duplicate += 1
+            result.errors.append({"index": index, "reason": "duplicate", "content_hash": content_hash})
+            continue
+        if content_hash in seen_hashes:
             result.duplicate += 1
             result.errors.append({"index": index, "reason": "duplicate", "content_hash": content_hash})
             continue
@@ -85,12 +97,40 @@ def ingest_records(
             origin=origin,
             raw_payload=_serialize_payload(cleaned.raw_payload),
         )
-        db.add(item)
-        db.flush()
+        pending_items.append(item)
         result.accepted += 1
-        result.sample_ids.append(item.id)
-        existing_hashes.add(content_hash)
+        seen_hashes.add(content_hash)
+        if len(pending_items) >= INGEST_FLUSH_BATCH_SIZE:
+            _flush_items(db, pending_items, result)
+            pending_items = []
+
+    if pending_items:
+        _flush_items(db, pending_items, result)
     return result
+
+
+def _flush_items(db: Session, items: list[OpinionItem], result: IngestionResult) -> None:
+    db.add_all(items)
+    db.flush()
+    result.sample_ids.extend(item.id for item in items)
+    sync_opinion_fts_rows(db, items)
+
+
+def _existing_hashes_for_batch(db: Session, source_id: int, incoming_hashes: set[str]) -> set[str]:
+    if not incoming_hashes:
+        return set()
+    out: set[str] = set()
+    hashes = list(incoming_hashes)
+    for start in range(0, len(hashes), HASH_LOOKUP_CHUNK_SIZE):
+        chunk = hashes[start : start + HASH_LOOKUP_CHUNK_SIZE]
+        rows = (
+            db.query(OpinionItem.content_hash)
+            .filter(OpinionItem.source_id == source_id)
+            .filter(OpinionItem.content_hash.in_(chunk))
+            .all()
+        )
+        out.update(row[0] for row in rows)
+    return out
 
 
 def ingest_via_connector(
